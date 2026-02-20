@@ -1,0 +1,323 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Users & Auth ---
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  activated     Boolean   @default(false)
+  langKey       String?
+  imageUrl      String?
+  activationKey String?
+  resetKey      String?
+  resetDate     DateTime?
+  
+  // Contact Info
+  phone         String?
+  landline      String? // Fixed phone
+  address       String? // Full address text
+  
+  // Personal Info (Particulier)
+  civility      Civility?
+  dateOfBirth   DateTime?
+
+  // Company / Professional Info
+  userType      UserType  @default(PARTICULIER)
+  companyName   String?
+  companyActivity CompanyActivity?
+  commercialRegister String?
+  agreementNumber String?
+  
+  // Documents (Société)
+  rcDocumentUrl      String?
+  agreementDocumentUrl String?
+  
+  // Status
+  adminVerified Boolean   @default(false)
+  
+  townId        Int?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  announces     Announce[]
+  entrustedResearch EntrustedResearch[]
+  points        UserPoint?
+  pointUsages   PointUsage[]
+  favorites     Favorite[]
+  sentMessages     Message[]  @relation("SentMessages")
+  receivedMessages Message[]  @relation("ReceivedMessages")
+
+  @@map("user")
+}
+
+model UserPoint {
+  id             Int      @id @default(autoincrement())
+  currentPoints  Int      @default(0)
+  expirationDate DateTime?
+  
+  userId         Int      @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_point")
+}
+
+model PointUsage {
+  id         Int      @id @default(autoincrement())
+  pointsUsed Int
+  usageDate  DateTime @default(now())
+
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  announceId Int
+  announce   Announce @relation(fields: [announceId], references: [id], onDelete: Cascade)
+
+  @@map("point_usage")
+}
+
+// --- Locations (City / Town / Address) ---
+
+model City {
+  id      Int    @id @default(autoincrement())
+  nameAr  String
+  nameEn  String
+  nameFr  String
+  code    Int
+  
+  towns   Town[]
+
+  @@map("city")
+}
+
+model Town {
+  id      Int    @id @default(autoincrement())
+  nameAr  String
+  nameEn  String
+  nameFr  String
+  
+  cityId  Int
+  city    City   @relation(fields: [cityId], references: [id])
+  
+  addresses Address[]
+
+  @@map("town")
+}
+
+model Address {
+  id      Int    @id @default(autoincrement())
+  street  String // mapped from 'adress' in Java
+  
+  townId  Int
+  town    Town   @relation(fields: [townId], references: [id])
+
+  property Property?
+
+  @@map("address")
+}
+
+// --- Real Estate Core ---
+
+model Announce {
+  id              Int       @id @default(autoincrement())
+  reference       String    @unique
+  status          AnnounceStatus
+  type            TransactionType
+  price           Float     // mapped from 'amount'
+  exclusive       Boolean   @default(false)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  refreshDate     DateTime?
+  expirationDate  DateTime? // mapped from 'expiredDate'
+
+  nbViews         Int       @default(0)
+  nbFavs          Int       @default(0)
+
+  userId          Int
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  property        Property?
+  pointUsages     PointUsage[]
+  favoritedBy     Favorite[]
+  messages        Message[]
+
+  @@map("announce")
+}
+
+model Property {
+  id               Int       @id @default(autoincrement())
+  area             Float
+  nbRooms          Int?
+  nbPieces         Int?
+  nbFloors         Int?
+  description      String    @db.Text
+  availableDate    DateTime?
+  
+  announceId       Int       @unique
+  announce         Announce  @relation(fields: [announceId], references: [id], onDelete: Cascade)
+
+  addressId        Int?      @unique
+  address          Address?  @relation(fields: [addressId], references: [id])
+
+  images           Image[]
+  propertyType     String?   // Simplified for now, could be a relation
+  amenities        String?   // JSON string of selected amenities IDs
+
+  @@map("property")
+}
+
+model Image {
+  id          Int      @id @default(autoincrement())
+  url         String?  // If stored externally
+  content     Bytes?   // If stored as BLOB (like in Java)
+  contentType String?
+  isMain      Boolean  @default(false)
+  
+  propertyId  Int
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("image")
+}
+
+// --- Features ---
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  announceId Int
+  announce   Announce @relation(fields: [announceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, announceId])
+  @@map("favorite")
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  isRead    Boolean  @default(false)
+
+  senderId  Int
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  receiverId Int
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  announceId Int?
+  announce   Announce? @relation(fields: [announceId], references: [id], onDelete: SetNull)
+
+  @@map("message")
+}
+
+// --- Enums ---
+
+enum AnnounceStatus {
+  DRAFT
+  WAITING_VALIDATION
+  VALIDATED
+  ARCHIVED
+  REJECTED
+}
+
+enum TransactionType {
+  RENTAL
+  SALE
+  HOLIDAY_RENTAL
+}
+
+enum UserType {
+  PARTICULIER
+  SOCIETE
+  ADMIN
+}
+
+enum CompanyActivity {
+  AGENCE_IMMOBILIERE
+  PROMOTEUR_IMMOBILIER
+  HOTELLERIE_HEBERGEMENT
+  SALLE_DES_FETES
+  ENTREPOSAGE_FRIGORIFIQUE
+  ENTREPOSAGE_NON_FRIGORIFIQUE
+}
+
+enum Civility {
+  M
+  MME
+}
+
+// --- New Models for Migration ---
+
+model Contact {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  subject   String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+  status    String?  @default("NEW") // NEW, READ, ARCHIVED
+
+  @@map("contact")
+}
+
+model EntrustedResearch {
+  id               Int             @id @default(autoincrement())
+  transaction      TransactionType
+  
+  // Property Criteria
+  minSurface       Float?
+  maxSurface       Float?
+  nbPieces         Int?
+  nbRooms          Int?
+  nbFloors         Int?
+  
+  // Budget & Location
+  minBudget        Float
+  maxBudget        Float
+  installationDate DateTime
+  
+  cityId           Int?
+  towns            String? // Store as JSON array of Town IDs or names
+  
+  comment          String  @db.Text
+  
+  // User Info
+  userId           Int?
+  user             User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Additional Info
+  firstName        String?
+  lastName         String?
+  email            String?
+  phone            String?
+  address          String?
+  companyName      String?
+  activity         String?
+  
+  // Property Types & Amenities
+  realEstateType   String?
+  propertyType     String?
+  amenities        String? // JSON string of amenities IDs
+
+  createdAt        DateTime @default(now())
+
+  @@map("entrusted_research")
+}

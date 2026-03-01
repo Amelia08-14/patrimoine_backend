@@ -17,12 +17,42 @@ export class AnnounceService {
       price, 
       rooms, 
       description,
-      amenities
+      amenities,
+      // New fields
+      landArea, builtArea, typology, configuration, state,
+      parkingCount, outdoorParking,
+      usageType,
+      nbSuites, nbLivingRooms, nbBathrooms, nbToilets,
+      kitchenType, kitchenState,
+      heatingType, acType,
+      waterCounter, elecCounter, gasCounter,
+      depositMonths, rentalUsage, chargesIncluded,
+      imagesMetadata
     } = createAnnounceDto;
+
+    // Parse image metadata
+    let categoryMap: Record<string, string> = {};
+    let metadataArray: any[] = [];
+
+    if (imagesMetadata) {
+        try {
+            const meta = JSON.parse(imagesMetadata);
+            if (Array.isArray(meta)) {
+                metadataArray = meta;
+                meta.forEach((item: any) => {
+                    if (item.filename && item.category) {
+                        categoryMap[item.filename] = item.category;
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Failed to parse imagesMetadata", e);
+        }
+    }
 
     // Création de l'annonce avec Prisma
     console.log("FULL DTO RECEIVED:", JSON.stringify(createAnnounceDto));
-    console.log("Creating announce with data:", { transactionType, price, userId, status: AnnounceStatus.WAITING_VALIDATION });
+    console.log("Creating announce with data:", { transactionType, price, userId, status: AnnounceStatus.VALIDATED });
     
     if (!transactionType) {
         throw new Error("Transaction Type is missing from DTO");
@@ -32,7 +62,7 @@ export class AnnounceService {
       const announce = await this.prisma.announce.create({
         data: {
           reference: `REF-${Date.now()}`,
-          status: AnnounceStatus.WAITING_VALIDATION,
+          status: AnnounceStatus.VALIDATED,
           type: transactionType as TransactionType,
           price: Number(price),
         userId: userId,
@@ -43,6 +73,29 @@ export class AnnounceService {
             area: Number(area),
             nbRooms: Number(rooms),
             propertyType,
+            // Mapping new fields
+            landArea: landArea ? Number(landArea) : undefined,
+            builtArea: builtArea ? Number(builtArea) : undefined,
+            typology,
+            configuration,
+            state,
+            parkingCount: parkingCount ? Number(parkingCount) : undefined,
+            outdoorParking: outdoorParking ? Number(outdoorParking) : undefined,
+            usageType,
+            nbSuites: nbSuites ? Number(nbSuites) : undefined,
+            nbLivingRooms: nbLivingRooms ? Number(nbLivingRooms) : undefined,
+            nbBathrooms: nbBathrooms ? Number(nbBathrooms) : undefined,
+            nbToilets: nbToilets ? Number(nbToilets) : undefined,
+            kitchenType,
+            kitchenState,
+            heatingType,
+            acType,
+            waterCounter,
+            elecCounter,
+            gasCounter,
+            depositMonths: depositMonths ? Number(depositMonths) : undefined,
+            rentalUsage,
+            chargesIncluded: chargesIncluded === 'true',
             address: {
               create: {
                 street: address,
@@ -64,10 +117,22 @@ export class AnnounceService {
               }
             },
             images: {
-              create: files.map(file => ({
-                url: file.path.replace(/\\/g, '/'), // Ensure forward slashes for URLs
-                contentType: file.mimetype
-              }))
+              create: files.map((file, index) => {
+                // Determine category: Priority to index-based matching (since order is preserved), 
+                // then filename matching, then default to 'general'
+                let category = 'general';
+                if (metadataArray[index] && metadataArray[index].category) {
+                    category = metadataArray[index].category;
+                } else if (categoryMap[file.originalname]) {
+                    category = categoryMap[file.originalname];
+                }
+
+                return {
+                    url: file.path.replace(/\\/g, '/'),
+                    contentType: file.mimetype,
+                    category: category
+                };
+              })
             }
           }
         }

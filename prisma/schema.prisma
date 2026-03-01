@@ -178,6 +178,46 @@ model Property {
   propertyType     String?   // Simplified for now, could be a relation
   amenities        String?   // JSON string of selected amenities IDs
 
+  // --- New Fields for Villa Rental ---
+  
+  // Surfaces & Config
+  landArea         Float?    // Surface Totale Terrain
+  builtArea        Float?    // Surface Bâtie
+  typology         String?   // F2, F3...
+  configuration    String?   // R+1, R+2...
+  state            String?   // Neuf, Rénové, Bon état...
+  
+  // Parking
+  parkingCount     Int?      // Garage fermé
+  outdoorParking   Int?      // Espace ouvert
+
+  // Lifestyle
+  usageType        String?   // Communicante / Séparé
+
+  // Spaces
+  nbSuites         Int?
+  nbLivingRooms    Int?
+  nbBathrooms      Int?
+  nbToilets        Int?
+
+  // Kitchen
+  kitchenType      String?   // Américaine, Fermée...
+  kitchenState     String?   // Équipée, Aménagée...
+
+  // Tech & Comfort
+  heatingType      String?   // Centralisé, Sol, Gaz...
+  acType           String?   // Centralisé, Splits, Sans...
+  
+  // Counters (Individual / Shared)
+  waterCounter     String?
+  elecCounter      String?
+  gasCounter       String?
+
+  // Rental Conditions
+  depositMonths    Int?      // Caution
+  rentalUsage      String?   // Habitation / Pro
+  chargesIncluded  Boolean   @default(false)
+
   @@map("property")
 }
 
@@ -187,6 +227,7 @@ model Image {
   content     Bytes?   // If stored as BLOB (like in Java)
   contentType String?
   isMain      Boolean  @default(false)
+  category    String?  // "kitchen", "exterior", "bedroom", etc.
   
   propertyId  Int
   property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)

@@ -8,30 +8,11 @@ export class AnnounceService {
   constructor(private prisma: PrismaService) {}
 
   async create(userId: number, createAnnounceDto: CreateAnnounceDto, files: Array<Express.Multer.File>) {
-    const { 
-      transactionType, 
-      propertyType, 
-      city, 
-      address, 
-      area, 
-      price, 
-      rooms, 
-      description,
-      amenities,
-      // New fields
-      landArea, builtArea, typology, configuration, state,
-      parkingCount, outdoorParking,
-      usageType,
-      nbSuites, nbLivingRooms, nbBathrooms, nbToilets,
-      kitchenType, kitchenState,
-      heatingType, acType,
-      waterCounter, elecCounter, gasCounter,
-      depositMonths, rentalUsage, chargesIncluded,
-      imagesMetadata
-    } = createAnnounceDto;
+    const { imagesMetadata } = createAnnounceDto;
 
     // Parse image metadata
     let categoryMap: Record<string, string> = {};
+    let mainImageMap: Record<string, boolean> = {};
     let metadataArray: any[] = [];
 
     if (imagesMetadata) {
@@ -40,8 +21,9 @@ export class AnnounceService {
             if (Array.isArray(meta)) {
                 metadataArray = meta;
                 meta.forEach((item: any) => {
-                    if (item.filename && item.category) {
-                        categoryMap[item.filename] = item.category;
+                    if (item.filename) {
+                        if (item.category) categoryMap[item.filename] = item.category;
+                        if (item.isMain) mainImageMap[item.filename] = true;
                     }
                 });
             }
@@ -50,9 +32,23 @@ export class AnnounceService {
         }
     }
 
+    const {
+        transactionType, price, area, rooms, description,
+        propertyType, amenities,
+        landArea, builtArea, typology, configuration, state,
+        parkingCount, outdoorParking, usageType,
+        nbSuites, nbLivingRooms, nbBathrooms, nbToilets,
+        kitchenType, kitchenState,
+        heatingType, acType,
+        waterCounter, elecCounter, gasCounter,
+        depositMonths, rentalUsage, chargesIncluded,
+        city, address,
+        contacts
+    } = createAnnounceDto;
+
     // Création de l'annonce avec Prisma
     console.log("FULL DTO RECEIVED:", JSON.stringify(createAnnounceDto));
-    console.log("Creating announce with data:", { transactionType, price, userId, status: AnnounceStatus.VALIDATED });
+    console.log("Creating announce with data:", { transactionType, price, userId, status: AnnounceStatus.WAITING_VALIDATION });
     
     if (!transactionType) {
         throw new Error("Transaction Type is missing from DTO");
@@ -62,7 +58,7 @@ export class AnnounceService {
       const announce = await this.prisma.announce.create({
         data: {
           reference: `REF-${Date.now()}`,
-          status: AnnounceStatus.VALIDATED,
+          status: AnnounceStatus.WAITING_VALIDATION,
           type: transactionType as TransactionType,
           price: Number(price),
         userId: userId,
@@ -96,6 +92,7 @@ export class AnnounceService {
             depositMonths: depositMonths ? Number(depositMonths) : undefined,
             rentalUsage,
             chargesIncluded: chargesIncluded === 'true',
+            contacts, // Added contacts
             address: {
               create: {
                 street: address,
@@ -118,19 +115,24 @@ export class AnnounceService {
             },
             images: {
               create: files.map((file, index) => {
-                // Determine category: Priority to index-based matching (since order is preserved), 
-                // then filename matching, then default to 'general'
+                // Determine category and main image status
                 let category = 'general';
-                if (metadataArray[index] && metadataArray[index].category) {
-                    category = metadataArray[index].category;
-                } else if (categoryMap[file.originalname]) {
-                    category = categoryMap[file.originalname];
+                let isMain = false;
+
+                if (metadataArray[index]) {
+                    if (metadataArray[index].category) category = metadataArray[index].category;
+                    if (metadataArray[index].isMain) isMain = true;
+                } else {
+                    // Fallback to filename matching
+                    if (categoryMap[file.originalname]) category = categoryMap[file.originalname];
+                    if (mainImageMap[file.originalname]) isMain = true;
                 }
 
                 return {
                     url: file.path.replace(/\\/g, '/'),
                     contentType: file.mimetype,
-                    category: category
+                    category: category,
+                    isMain: isMain
                 };
               })
             }
@@ -145,8 +147,6 @@ export class AnnounceService {
         }
       }
     });
-    
-    console.log("Announce created successfully:", announce.id);
     return announce;
     } catch (error) {
         console.error("Error creating announce:", error);

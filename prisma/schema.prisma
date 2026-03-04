@@ -217,6 +217,9 @@ model Property {
   depositMonths    Int?      // Caution
   rentalUsage      String?   // Habitation / Pro
   chargesIncluded  Boolean   @default(false)
+  
+  // Contacts
+  contacts         String?   // JSON string: [{ phone: string, whatsapp: boolean, viber: boolean }]
 
   @@map("property")
 }

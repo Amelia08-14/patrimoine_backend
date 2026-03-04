@@ -70,7 +70,9 @@ export class CreateAnnounceDto {
   @IsString() @IsOptional() rentalUsage?: string;
   @IsString() @IsOptional() chargesIncluded?: string;
 
-  @IsString() @IsOptional() imagesMetadata?: string;
+  @IsString() @IsOptional() contacts?: string; // JSON String
+
+  @IsString() @IsOptional() imagesMetadata?: string; // JSON String
 
   @IsOptional()
   userId?: string;

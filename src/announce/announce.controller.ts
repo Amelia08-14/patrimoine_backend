@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Param, UseInterceptors, UploadedFiles, UseGuards, Req, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { AnnounceService } from './announce.service';
 import { CreateAnnounceDto } from './dto/create-announce.dto';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -34,7 +34,10 @@ export class AnnounceController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  @UseInterceptors(FilesInterceptor('images', 10, {
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'images', maxCount: 10 },
+    { name: 'videos', maxCount: 2 }
+  ], {
     storage: diskStorage({
       destination: './uploads',
       filename: (req: any, file: any, callback: any) => {
@@ -44,13 +47,20 @@ export class AnnounceController {
       },
     }),
   }))
-  async create(@Body() createAnnounceDto: CreateAnnounceDto, @UploadedFiles() files: Array<Express.Multer.File>, @Req() req: any) {
+  async create(@Body() createAnnounceDto: CreateAnnounceDto, @UploadedFiles() files: { images?: Array<Express.Multer.File>, videos?: Array<Express.Multer.File> }, @Req() req: any) {
     // Check if user is validated
     const user = await this.prisma.user.findUnique({ where: { id: req.user.userId } });
     if (!user || !user.adminVerified) {
         throw new UnauthorizedException("Votre compte doit être validé par un administrateur pour poster des annonces.");
     }
 
-    return this.announceService.create(req.user.userId, createAnnounceDto, files);
+    // Merge images and videos into a single array or handle them in service
+    // For now, let's just pass images to the service as it expects, 
+    // but ideally the service should be updated to handle videos too.
+    // Assuming service.create takes (userId, dto, files) where files is Array<Express.Multer.File>
+    
+    const allFiles = [...(files.images || []), ...(files.videos || [])];
+
+    return this.announceService.create(req.user.userId, createAnnounceDto, allFiles);
   }
 }

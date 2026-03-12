@@ -33,18 +33,23 @@ export class AnnounceService {
     }
 
     const {
-        transactionType, price, area, rooms, description,
+        transactionType, price, priceUnit, priceType, area, rooms, description,
         propertyType, amenities,
-        landArea, builtArea, typology, configuration, state,
+        landArea, builtArea, typology, floorCount, state,
         parkingCount, outdoorParking, usageType,
         nbSuites, nbLivingRooms, nbBathrooms, nbToilets,
         kitchenType, kitchenState,
         heatingType, acType,
         waterCounter, elecCounter, gasCounter,
-        depositMonths, rentalUsage, chargesIncluded,
-        city, address,
+        depositMonths, rentalUsage, chargesIncluded, availableDate,
+        city, commune, address, mapsLink,
         contacts
     } = createAnnounceDto;
+
+    // Separate images and videos
+    const imageFiles = files.filter(file => !file.mimetype.startsWith('video/'));
+    const videoFiles = files.filter(file => file.mimetype.startsWith('video/'));
+    const videoPaths = videoFiles.map(file => file.path.replace(/\\/g, '/'));
 
     // Création de l'annonce avec Prisma
     console.log("FULL DTO RECEIVED:", JSON.stringify(createAnnounceDto));
@@ -54,6 +59,26 @@ export class AnnounceService {
         throw new Error("Transaction Type is missing from DTO");
     }
 
+    // Handle City creation/connection manually to avoid unique constraint issues
+    let cityId: number;
+    const existingCity = await this.prisma.city.findFirst({
+        where: { nameFr: city }
+    });
+
+    if (existingCity) {
+        cityId = existingCity.id;
+    } else {
+        const newCity = await this.prisma.city.create({
+            data: {
+                nameFr: city,
+                nameAr: city,
+                nameEn: city,
+                code: 16000 // Default code
+            }
+        });
+        cityId = newCity.id;
+    }
+
     try {
       const announce = await this.prisma.announce.create({
         data: {
@@ -61,10 +86,12 @@ export class AnnounceService {
           status: AnnounceStatus.WAITING_VALIDATION,
           type: transactionType as TransactionType,
           price: Number(price),
+          priceUnit,
+          priceType,
         userId: userId,
         property: {
           create: {
-            description,
+            description: description || null,
             amenities: amenities ? amenities : undefined,
             area: Number(area),
             nbRooms: Number(rooms),
@@ -73,7 +100,7 @@ export class AnnounceService {
             landArea: landArea ? Number(landArea) : undefined,
             builtArea: builtArea ? Number(builtArea) : undefined,
             typology,
-            configuration,
+            nbFloors: floorCount ? Number(floorCount) : undefined, // Assuming floorCount maps to nbFloors
             state,
             parkingCount: parkingCount ? Number(parkingCount) : undefined,
             outdoorParking: outdoorParking ? Number(outdoorParking) : undefined,
@@ -92,29 +119,28 @@ export class AnnounceService {
             depositMonths: depositMonths ? Number(depositMonths) : undefined,
             rentalUsage,
             chargesIncluded: chargesIncluded === 'true',
+            availableDate: availableDate ? new Date(availableDate) : undefined,
             contacts, // Added contacts
+            mapsLink,
+            commune,
+            videos: JSON.stringify(videoPaths),
             address: {
               create: {
                 street: address,
                 town: {
                   create: {
-                    nameFr: city,
-                    nameAr: city,
-                    nameEn: city,
+                    nameFr: commune || city, // Use commune if available, fallback to city
+                    nameAr: commune || city,
+                    nameEn: commune || city,
                     city: {
-                      create: {
-                        nameFr: city,
-                        nameAr: city,
-                        nameEn: city,
-                        code: 16000 // Code par défaut temporaire
-                      }
+                      connect: { id: cityId }
                     }
                   }
                 }
               }
             },
             images: {
-              create: files.map((file, index) => {
+              create: imageFiles.map((file, index) => {
                 // Determine category and main image status
                 let category = 'general';
                 let isMain = false;

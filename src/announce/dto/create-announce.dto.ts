@@ -15,24 +15,40 @@ export class CreateAnnounceDto {
   city: string;
 
   @IsString()
+  @IsOptional()
+  commune?: string;
+
+  @IsString()
   @IsNotEmpty()
   address: string;
+
+  @IsString()
+  @IsOptional()
+  mapsLink?: string;
 
   @IsString()
   @IsNotEmpty()
   area: string;
 
   @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
   @IsNotEmpty()
   price: string;
 
   @IsString()
-  @IsNotEmpty()
-  rooms: string;
+  @IsOptional()
+  priceUnit?: string;
 
   @IsString()
-  @IsNotEmpty()
-  description: string;
+  @IsOptional()
+  priceType?: string;
+
+  @IsString()
+  @IsOptional() // Can be optional if villa
+  rooms: string;
 
   @IsString()
   @IsOptional()
@@ -44,6 +60,7 @@ export class CreateAnnounceDto {
   @IsString() @IsOptional() builtArea?: string;
   @IsString() @IsOptional() typology?: string;
   @IsString() @IsOptional() configuration?: string;
+  @IsString() @IsOptional() floorCount?: string;
   @IsString() @IsOptional() state?: string;
   
   @IsString() @IsOptional() parkingCount?: string;
@@ -69,6 +86,7 @@ export class CreateAnnounceDto {
   @IsString() @IsOptional() depositMonths?: string;
   @IsString() @IsOptional() rentalUsage?: string;
   @IsString() @IsOptional() chargesIncluded?: string;
+  @IsString() @IsOptional() availableDate?: string;
 
   @IsString() @IsOptional() contacts?: string; // JSON String
 

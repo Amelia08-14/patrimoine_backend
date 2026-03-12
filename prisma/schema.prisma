@@ -138,6 +138,8 @@ model Announce {
   status          AnnounceStatus
   type            TransactionType
   price           Float     // mapped from 'amount'
+  priceUnit       String?   // DA, MILLION, MILLIARD
+  priceType       String?   // FIXED, NEGOTIABLE
   exclusive       Boolean   @default(false)
   
   createdAt       DateTime  @default(now())
@@ -165,7 +167,7 @@ model Property {
   nbRooms          Int?
   nbPieces         Int?
   nbFloors         Int?
-  description      String    @db.Text
+  description      String?   @db.Text
   availableDate    DateTime?
   
   announceId       Int       @unique
@@ -173,6 +175,10 @@ model Property {
 
   addressId        Int?      @unique
   address          Address?  @relation(fields: [addressId], references: [id])
+  
+  commune          String?   // Added field
+  mapsLink         String?   // Added field
+  videos           String?   // JSON string of video paths
 
   images           Image[]
   propertyType     String?   // Simplified for now, could be a relation

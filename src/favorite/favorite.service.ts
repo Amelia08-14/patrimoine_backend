@@ -52,7 +52,26 @@ export class FavoriteService {
             property: {
               include: {
                 images: true,
-                address: { include: { town: { include: { city: true } } } }
+                address: {
+                  include: {
+                    town: {
+                      select: {
+                        id: true,
+                        nameFr: true,
+                        nameAr: true,
+                        nameEn: true,
+                        city: {
+                          select: {
+                            id: true,
+                            nameFr: true,
+                            nameAr: true,
+                            nameEn: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                }
               }
             },
             user: true

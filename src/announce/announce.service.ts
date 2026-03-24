@@ -33,7 +33,7 @@ export class AnnounceService {
     }
 
     const {
-        transactionType, price, priceUnit, priceType, area, rooms, description,
+        transactionType, price, priceUnit, priceType, area, rooms,
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
         parkingCount, outdoorParking, usageType,
@@ -42,9 +42,60 @@ export class AnnounceService {
         heatingType, acType,
         waterCounter, elecCounter, gasCounter,
         depositMonths, rentalUsage, chargesIncluded, availableDate,
+        habitableArea, bedrooms, bathrooms, wc, livingRooms,
+        kitchenEquipment, exteriorFeatures, utilities, securityFeatures, connectivity,
         city, commune, address, mapsLink,
         contacts
     } = createAnnounceDto;
+
+    const toFloat = (v: any): number | undefined => {
+        if (v === null || v === undefined) return undefined;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : undefined;
+    };
+
+    const toInt = (v: any): number | undefined => {
+        const n = toFloat(v);
+        if (n === undefined) return undefined;
+        const i = Math.trunc(n);
+        return Number.isFinite(i) ? i : undefined;
+    };
+
+    const parseJsonArray = (v?: string): string[] | undefined => {
+        if (!v) return undefined;
+        try {
+            const parsed = JSON.parse(v);
+            if (Array.isArray(parsed)) return parsed.map(x => String(x));
+            return undefined;
+        } catch {
+            return undefined;
+        }
+    };
+
+    const computedArea =
+        toFloat(area) ??
+        toFloat(habitableArea) ??
+        toFloat(builtArea) ??
+        toFloat(landArea) ??
+        0;
+
+    const computedNbRooms = toInt(rooms) ?? toInt(bedrooms);
+    const computedNbPieces = toInt(bedrooms);
+    const computedNbLivingRooms = toInt(nbLivingRooms) ?? toInt(livingRooms);
+    const computedNbBathrooms = toInt(nbBathrooms) ?? toInt(bathrooms);
+    const computedNbToilets = toInt(nbToilets) ?? toInt(wc);
+
+    let amenitiesValue: string | undefined = amenities || undefined;
+    const featuresPayload = {
+        kitchenEquipment: parseJsonArray(kitchenEquipment),
+        exteriorFeatures: parseJsonArray(exteriorFeatures),
+        utilities: parseJsonArray(utilities),
+        securityFeatures: parseJsonArray(securityFeatures),
+        connectivity: parseJsonArray(connectivity),
+    };
+    if (Object.values(featuresPayload).some(v => Array.isArray(v) && v.length > 0)) {
+        amenitiesValue = JSON.stringify(featuresPayload);
+    }
 
     // Separate images and videos
     const imageFiles = files.filter(file => !file.mimetype.startsWith('video/'));
@@ -68,15 +119,36 @@ export class AnnounceService {
     if (existingCity) {
         cityId = existingCity.id;
     } else {
-        const newCity = await this.prisma.city.create({
-            data: {
-                nameFr: city,
-                nameAr: city,
-                nameEn: city,
-                code: 16000 // Default code
+        const hash = (value: string) => {
+            let h = 5381;
+            for (let i = 0; i < value.length; i++) {
+                h = ((h << 5) + h) ^ value.charCodeAt(i);
             }
-        });
-        cityId = newCity.id;
+            return h >>> 0;
+        };
+
+        const baseCode = 1_000_000_000 + (hash(city) % 900_000_000);
+        let nextCode = baseCode;
+        let createdCity: any = null;
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+                createdCity = await this.prisma.city.create({
+                    data: {
+                        nameFr: city,
+                        nameAr: city,
+                        nameEn: city,
+                        code: nextCode
+                    }
+                });
+                break;
+            } catch (e: any) {
+                nextCode += 1;
+                if (attempt === 4) throw e;
+            }
+        }
+
+        cityId = createdCity.id;
     }
 
     try {
@@ -91,10 +163,10 @@ export class AnnounceService {
         userId: userId,
         property: {
           create: {
-            description: description || null,
-            amenities: amenities ? amenities : undefined,
-            area: Number(area),
-            nbRooms: Number(rooms),
+            amenities: amenitiesValue,
+            area: computedArea,
+            nbRooms: computedNbRooms,
+            nbPieces: computedNbPieces,
             propertyType,
             // Mapping new fields
             landArea: landArea ? Number(landArea) : undefined,
@@ -106,9 +178,9 @@ export class AnnounceService {
             outdoorParking: outdoorParking ? Number(outdoorParking) : undefined,
             usageType,
             nbSuites: nbSuites ? Number(nbSuites) : undefined,
-            nbLivingRooms: nbLivingRooms ? Number(nbLivingRooms) : undefined,
-            nbBathrooms: nbBathrooms ? Number(nbBathrooms) : undefined,
-            nbToilets: nbToilets ? Number(nbToilets) : undefined,
+            nbLivingRooms: computedNbLivingRooms,
+            nbBathrooms: computedNbBathrooms,
+            nbToilets: computedNbToilets,
             kitchenType,
             kitchenState,
             heatingType,
@@ -118,7 +190,7 @@ export class AnnounceService {
             gasCounter,
             depositMonths: depositMonths ? Number(depositMonths) : undefined,
             rentalUsage,
-            chargesIncluded: chargesIncluded === 'true',
+            chargesIncluded: chargesIncluded === 'true' || (chargesIncluded as any) === true,
             availableDate: availableDate ? new Date(availableDate) : undefined,
             contacts, // Added contacts
             mapsLink,
@@ -200,7 +272,26 @@ export class AnnounceService {
         property: {
           include: {
             images: true,
-            address: { include: { town: { include: { city: true } } } }
+            address: {
+              include: {
+                town: {
+                  select: {
+                    id: true,
+                    nameFr: true,
+                    nameAr: true,
+                    nameEn: true,
+                    city: {
+                      select: {
+                        id: true,
+                        nameFr: true,
+                        nameAr: true,
+                        nameEn: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           }
         }
       }
@@ -221,7 +312,26 @@ export class AnnounceService {
         property: {
           include: {
             images: true,
-            address: { include: { town: { include: { city: true } } } }
+            address: {
+              include: {
+                town: {
+                  select: {
+                    id: true,
+                    nameFr: true,
+                    nameAr: true,
+                    nameEn: true,
+                    city: {
+                      select: {
+                        id: true,
+                        nameFr: true,
+                        nameAr: true,
+                        nameEn: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           }
         }
       }

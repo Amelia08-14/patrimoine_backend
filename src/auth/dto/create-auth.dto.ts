@@ -1,4 +1,5 @@
 import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum, IsNumber } from 'class-validator';
+import { CompanyActivity } from '@prisma/client';
 
 export class CreateAuthDto {
   @IsEmail()
@@ -33,19 +34,22 @@ export class CreateAuthDto {
   companyName?: string;
 
   @IsOptional()
-  @IsString()
-  activityType?: string; // Mapped to CompanyActivity enum
+  @IsEnum(CompanyActivity)
+  activityType?: CompanyActivity;
 
   @IsOptional()
   @IsString()
   commercialRegister?: string;
 
   @IsOptional()
-  @IsString()
-  agreementNumber?: string;
+  @IsNumber()
+  townId?: number;
 
   @IsOptional()
   @IsNumber()
-  townId?: number;
-}
+  cityCode?: number;
 
+  @IsOptional()
+  @IsNumber()
+  townCode?: number;
+}

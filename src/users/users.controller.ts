@@ -54,7 +54,7 @@ export class UsersController {
     const { 
         civility, firstName, lastName, dateOfBirth, 
         phone, landline, address, townId, wilaya, commune,
-        commercialRegister, agreementNumber, companyName
+        commercialRegister, companyName
     } = data;
 
     // Construct full address if wilaya/commune provided and no townId
@@ -85,7 +85,6 @@ export class UsersController {
         townId: townId ? Number(townId) : undefined,
         // Champs Société
         commercialRegister,
-        agreementNumber,
         companyName,
         
         // Update documents if provided

@@ -94,7 +94,6 @@ async function main() {
         create: {
           area: 145,
           nbRooms: 4,
-          description: 'Magnifique appartement F4 haut standing à Hydra avec vue dégagée.',
           propertyType: 'Appartement',
           address: {
             create: {
@@ -124,7 +123,6 @@ async function main() {
         create: {
           area: 350,
           nbRooms: 7,
-          description: 'Villa moderne avec piscine chauffée et jardin.',
           propertyType: 'Villa',
           address: {
             create: {
@@ -154,7 +152,6 @@ async function main() {
         create: {
           area: 90,
           nbRooms: 3,
-          description: 'Appartement F3 ensoleillé proche de toutes commodités.',
           propertyType: 'Appartement',
           address: {
             create: {

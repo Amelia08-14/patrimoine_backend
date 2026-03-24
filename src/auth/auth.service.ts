@@ -1,21 +1,22 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
+import { UserType } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService,
+    private jwtService: JwtService
   ) {}
 
   async register(createAuthDto: CreateAuthDto) {
     const { 
       email, password, firstName, lastName, phone,
-      userType, companyName, activityType, commercialRegister, agreementNumber, townId
+      userType, companyName, activityType, commercialRegister, townId, townCode
     } = createAuthDto;
 
     // Vérifier si l'utilisateur existe déjà
@@ -31,6 +32,15 @@ export class AuthService {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    const resolvedUserType = (userType || UserType.PARTICULIER) as any;
+    if (resolvedUserType === UserType.SOCIETE) {
+      if (!companyName || !activityType || !commercialRegister) {
+        throw new BadRequestException("Champs société incomplets");
+      }
+    }
+
+    const resolvedTownId: number | undefined = townId ? Number(townId) : undefined;
+
     // Créer l'utilisateur
     const user = await this.prisma.user.create({
       data: {
@@ -39,12 +49,11 @@ export class AuthService {
         firstName,
         lastName,
         phone,
-        userType: userType as any, // Prisma Enum
+        userType: resolvedUserType, // Prisma Enum
         companyName,
         companyActivity: activityType as any, // Prisma Enum
         commercialRegister,
-        agreementNumber,
-        townId: townId ? Number(townId) : undefined,
+        townId: resolvedTownId,
         activated: false, // Compte désactivé par défaut (email)
         adminVerified: false, // Non validé par l'admin par défaut
         activationKey: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15), // Générer une clé
@@ -158,6 +167,8 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         userType: user.userType,
+        companyName: user.companyName,
+        companyActivity: user.companyActivity,
         isProfileComplete,
         adminVerified: user.adminVerified
       },

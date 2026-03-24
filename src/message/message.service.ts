@@ -28,7 +28,7 @@ export class MessageService {
       include: {
         sender: { select: { id: true, firstName: true, lastName: true, companyName: true, imageUrl: true } },
         receiver: { select: { id: true, firstName: true, lastName: true, companyName: true, imageUrl: true } },
-        announce: { select: { id: true, reference: true, property: { select: { description: true } } } },
+        announce: { select: { id: true, reference: true, property: { select: { propertyType: true, area: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });

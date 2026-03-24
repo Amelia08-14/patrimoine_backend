@@ -27,12 +27,8 @@ export class CreateAnnounceDto {
   mapsLink?: string;
 
   @IsString()
-  @IsNotEmpty()
-  area: string;
-
-  @IsString()
   @IsOptional()
-  description?: string;
+  area?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -48,11 +44,51 @@ export class CreateAnnounceDto {
 
   @IsString()
   @IsOptional() // Can be optional if villa
-  rooms: string;
+  rooms?: string;
+
+  @IsString()
+  @IsOptional()
+  habitableArea?: string;
+
+  @IsString()
+  @IsOptional()
+  bedrooms?: string;
+
+  @IsString()
+  @IsOptional()
+  bathrooms?: string;
+
+  @IsString()
+  @IsOptional()
+  wc?: string;
+
+  @IsString()
+  @IsOptional()
+  livingRooms?: string;
 
   @IsString()
   @IsOptional()
   amenities?: string;
+
+  @IsString()
+  @IsOptional()
+  kitchenEquipment?: string;
+
+  @IsString()
+  @IsOptional()
+  exteriorFeatures?: string;
+
+  @IsString()
+  @IsOptional()
+  utilities?: string;
+
+  @IsString()
+  @IsOptional()
+  securityFeatures?: string;
+
+  @IsString()
+  @IsOptional()
+  connectivity?: string;
 
   // --- New Fields for Villa Rental ---
   

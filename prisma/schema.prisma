@@ -40,7 +40,6 @@ model User {
   companyName   String?
   companyActivity CompanyActivity?
   commercialRegister String?
-  agreementNumber String?
   
   // Documents (Société)
   rcDocumentUrl      String?
@@ -97,7 +96,7 @@ model City {
   nameAr  String
   nameEn  String
   nameFr  String
-  code    Int
+  code    Int?   @unique
   
   towns   Town[]
 
@@ -109,6 +108,7 @@ model Town {
   nameAr  String
   nameEn  String
   nameFr  String
+  code    Int?   @unique
   
   cityId  Int
   city    City   @relation(fields: [cityId], references: [id])
@@ -167,7 +167,6 @@ model Property {
   nbRooms          Int?
   nbPieces         Int?
   nbFloors         Int?
-  description      String?   @db.Text
   availableDate    DateTime?
   
   announceId       Int       @unique
@@ -307,6 +306,22 @@ enum CompanyActivity {
   SALLE_DES_FETES
   ENTREPOSAGE_FRIGORIFIQUE
   ENTREPOSAGE_NON_FRIGORIFIQUE
+  ADMINISTRATEUR_BIENS
+  AUTRES_PROFESSIONNELS
+  HOTEL
+  COMPLEXE_TOURISTIQUE
+  VILLAGE_VACANCES
+  APPART_HOTEL
+  RESIDENCE_HOTELIERE
+  MOTEL
+  RELAIS_ROUTIER
+  CAMPING_TOURISTIQUE
+  AUTRES_STRUCTURES
+  SALLES_DINATOIRES
+  SALLE_FORMATION
+  SALLE_CONFERENCE
+  AUTRES_EVENEMENTIEL
+  AUTRES_ENTREPOSAGE_STOCKAGE
 }
 
 enum Civility {

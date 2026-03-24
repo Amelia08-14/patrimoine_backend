@@ -12,6 +12,7 @@ import { ContactModule } from './contact/contact.module';
 import { EntrustedResearchModule } from './entrusted-research/entrusted-research.module';
 import { FavoriteModule } from './favorite/favorite.module';
 import { MessageModule } from './message/message.module';
+import { LocationModule } from './location/location.module';
 
 @Module({
   imports: [
@@ -19,7 +20,15 @@ import { MessageModule } from './message/message.module';
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
     }),
-    AuthModule, AnnounceModule, UsersModule, AdminModule, ContactModule, EntrustedResearchModule, FavoriteModule, MessageModule
+    AuthModule,
+    AnnounceModule,
+    UsersModule,
+    AdminModule,
+    ContactModule,
+    EntrustedResearchModule,
+    FavoriteModule,
+    MessageModule,
+    LocationModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

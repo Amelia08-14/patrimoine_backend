@@ -31,7 +31,6 @@ export class AdminService {
         lastName: true,
         companyName: true,
         commercialRegister: true,
-        agreementNumber: true,
         rcDocumentUrl: true,
         agreementDocumentUrl: true,
         imageUrl: true,
@@ -60,7 +59,6 @@ export class AdminService {
         lastName: true,
         companyName: true,
         commercialRegister: true,
-        agreementNumber: true,
         rcDocumentUrl: true,
         agreementDocumentUrl: true,
         imageUrl: true,
@@ -98,7 +96,24 @@ export class AdminService {
         property: {
           include: {
             address: {
-              include: { town: { include: { city: true } } },
+              include: {
+                town: {
+                  select: {
+                    id: true,
+                    nameFr: true,
+                    nameAr: true,
+                    nameEn: true,
+                    city: {
+                      select: {
+                        id: true,
+                        nameFr: true,
+                        nameAr: true,
+                        nameEn: true,
+                      },
+                    },
+                  },
+                },
+              },
             },
             images: true,
           },
@@ -120,7 +135,24 @@ export class AdminService {
         property: {
           include: {
             address: {
-              include: { town: { include: { city: true } } },
+              include: {
+                town: {
+                  select: {
+                    id: true,
+                    nameFr: true,
+                    nameAr: true,
+                    nameEn: true,
+                    city: {
+                      select: {
+                        id: true,
+                        nameFr: true,
+                        nameAr: true,
+                        nameEn: true,
+                      },
+                    },
+                  },
+                },
+              },
             },
             images: true,
           },

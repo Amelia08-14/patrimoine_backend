@@ -169,6 +169,7 @@ export class AuthService {
         userType: user.userType,
         companyName: user.companyName,
         companyActivity: user.companyActivity,
+        agencyLogoUrl: user.agencyLogoUrl,
         isProfileComplete,
         adminVerified: user.adminVerified
       },

@@ -44,6 +44,8 @@ model User {
   // Documents (Société)
   rcDocumentUrl      String?
   agreementDocumentUrl String?
+  agencyLogoUrl      String?
+  position           String?
   
   // Status
   adminVerified Boolean   @default(false)
@@ -135,6 +137,8 @@ model Address {
 model Announce {
   id              Int       @id @default(autoincrement())
   reference       String    @unique
+  title           String?   // Added title
+  shortDescription String?  // Added short description
   status          AnnounceStatus
   type            TransactionType
   price           Float     // mapped from 'amount'

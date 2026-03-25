@@ -2,6 +2,14 @@ import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
 import { TransactionType } from '@prisma/client';
 
 export class CreateAnnounceDto {
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
+  shortDescription?: string;
+
   @IsEnum(TransactionType)
   @IsNotEmpty()
   transactionType: string;

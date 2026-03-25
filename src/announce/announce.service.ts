@@ -155,6 +155,8 @@ export class AnnounceService {
       const announce = await this.prisma.announce.create({
         data: {
           reference: `REF-${Date.now()}`,
+          title: (createAnnounceDto as any).title || null,
+          shortDescription: (createAnnounceDto as any).shortDescription || null,
           status: AnnounceStatus.WAITING_VALIDATION,
           type: transactionType as TransactionType,
           price: Number(price),

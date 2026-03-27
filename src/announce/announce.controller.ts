@@ -35,8 +35,8 @@ export class AnnounceController {
   @UseGuards(JwtAuthGuard)
   @Post()
   @UseInterceptors(FileFieldsInterceptor([
-    { name: 'images', maxCount: 10 },
-    { name: 'videos', maxCount: 2 }
+    { name: 'images', maxCount: 30 },
+    { name: 'videos', maxCount: 5 }
   ], {
     storage: diskStorage({
       destination: './uploads',

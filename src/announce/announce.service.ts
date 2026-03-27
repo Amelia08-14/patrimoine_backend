@@ -37,7 +37,7 @@ export class AnnounceService {
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
         parkingCount, outdoorParking, usageType,
-        nbSuites, nbLivingRooms, nbBathrooms, nbToilets,
+        nbSuites, nbLivingRooms, nbBathrooms, bathroomType, nbToilets,
         kitchenType, kitchenState,
         heatingType, acType,
         waterCounter, elecCounter, gasCounter,
@@ -86,14 +86,29 @@ export class AnnounceService {
     const computedNbToilets = toInt(nbToilets) ?? toInt(wc);
 
     let amenitiesValue: string | undefined = amenities || undefined;
-    const featuresPayload = {
-        kitchenEquipment: parseJsonArray(kitchenEquipment),
-        exteriorFeatures: parseJsonArray(exteriorFeatures),
-        utilities: parseJsonArray(utilities),
-        securityFeatures: parseJsonArray(securityFeatures),
-        connectivity: parseJsonArray(connectivity),
-    };
-    if (Object.values(featuresPayload).some(v => Array.isArray(v) && v.length > 0)) {
+    
+    // Check if we need to merge existing amenities with new features
+    let featuresPayload: any = {};
+    if (amenitiesValue) {
+        try {
+            const existingAmenities = JSON.parse(amenitiesValue);
+            if (typeof existingAmenities === 'object' && !Array.isArray(existingAmenities)) {
+                featuresPayload = { ...existingAmenities };
+            }
+        } catch (e) {
+            // Ignore if not a valid JSON object
+        }
+    }
+
+    // Always merge in these specific arrays if they exist in the DTO
+    if (kitchenEquipment) featuresPayload.kitchenEquipment = parseJsonArray(kitchenEquipment);
+    if (exteriorFeatures) featuresPayload.exteriorFeatures = parseJsonArray(exteriorFeatures);
+    if (utilities) featuresPayload.utilities = parseJsonArray(utilities);
+    if (securityFeatures) featuresPayload.securityFeatures = parseJsonArray(securityFeatures);
+    if (connectivity) featuresPayload.connectivity = parseJsonArray(connectivity);
+
+    // Only stringify if there are actual features to save
+    if (Object.keys(featuresPayload).some(k => Array.isArray(featuresPayload[k]) && featuresPayload[k].length > 0)) {
         amenitiesValue = JSON.stringify(featuresPayload);
     }
 
@@ -182,6 +197,7 @@ export class AnnounceService {
             nbSuites: nbSuites ? Number(nbSuites) : undefined,
             nbLivingRooms: computedNbLivingRooms,
             nbBathrooms: computedNbBathrooms,
+            bathroomType,
             nbToilets: computedNbToilets,
             kitchenType,
             kitchenState,

@@ -115,6 +115,7 @@ export class CreateAnnounceDto {
   @IsString() @IsOptional() nbSuites?: string;
   @IsString() @IsOptional() nbLivingRooms?: string;
   @IsString() @IsOptional() nbBathrooms?: string;
+  @IsString() @IsOptional() bathroomType?: string;
   @IsString() @IsOptional() nbToilets?: string;
 
   @IsString() @IsOptional() kitchenType?: string;

@@ -181,11 +181,11 @@ model Property {
   
   commune          String?   // Added field
   mapsLink         String?   // Added field
-  videos           String?   // JSON string of video paths
+  videos           String?   @db.Text // JSON string of video paths
 
   images           Image[]
   propertyType     String?   // Simplified for now, could be a relation
-  amenities        String?   // JSON string of selected amenities IDs
+  amenities        String?   @db.Text // JSON string of selected amenities IDs
 
   // --- New Fields for Villa Rental ---
   
@@ -229,7 +229,7 @@ model Property {
   chargesIncluded  Boolean   @default(false)
   
   // Contacts
-  contacts         String?   // JSON string: [{ phone: string, whatsapp: boolean, viber: boolean }]
+  contacts         String?   @db.Text // JSON string: [{ phone: string, whatsapp: boolean, viber: boolean }]
 
   @@map("property")
 }
@@ -385,7 +385,7 @@ model EntrustedResearch {
   // Property Types & Amenities
   realEstateType   String?
   propertyType     String?
-  amenities        String? // JSON string of amenities IDs
+  amenities        String? @db.Text // JSON string of amenities IDs
 
   createdAt        DateTime @default(now())
 

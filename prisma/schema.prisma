@@ -384,7 +384,7 @@ model EntrustedResearch {
   
   // Property Types & Amenities
   realEstateType   String?
-  propertyType     String?
+   propertyType     String?
   amenities        String? @db.Text // JSON string of amenities IDs
 
   createdAt        DateTime @default(now())

@@ -37,6 +37,7 @@ export class AnnounceService {
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
         parkingCount, outdoorParking, usageType,
+        buildingTypologyMode, buildingApartmentTypologyCustom, buildingApartmentTypologies, buildingCountF3, buildingCountF4, buildingCountF5,
         nbSuites, nbLivingRooms, nbBathrooms, bathroomType, nbToilets,
         kitchenType, kitchenState,
         heatingType, acType,
@@ -106,9 +107,38 @@ export class AnnounceService {
     if (utilities) featuresPayload.utilities = parseJsonArray(utilities);
     if (securityFeatures) featuresPayload.securityFeatures = parseJsonArray(securityFeatures);
     if (connectivity) featuresPayload.connectivity = parseJsonArray(connectivity);
+    
+    if (propertyType === 'IMMEUBLE_RESIDENTIEL' && buildingTypologyMode) {
+        const selectedTypologies = parseJsonArray(buildingApartmentTypologies);
+        const counts: Record<string, number> = {};
+        if (selectedTypologies?.includes('F3')) {
+            const v = toInt(buildingCountF3);
+            if (v !== undefined) counts.F3 = v;
+        }
+        if (selectedTypologies?.includes('F4')) {
+            const v = toInt(buildingCountF4);
+            if (v !== undefined) counts.F4 = v;
+        }
+        if (selectedTypologies?.includes('F5')) {
+            const v = toInt(buildingCountF5);
+            if (v !== undefined) counts.F5 = v;
+        }
+        
+        featuresPayload.buildingTypology = {
+            mode: buildingTypologyMode,
+            apartmentTypology: buildingApartmentTypologyCustom ? `F${buildingApartmentTypologyCustom}` : undefined,
+            apartmentTypologies: selectedTypologies,
+            counts: Object.keys(counts).length > 0 ? counts : undefined,
+        };
+    }
 
     // Only stringify if there are actual features to save
-    if (Object.keys(featuresPayload).some(k => Array.isArray(featuresPayload[k]) && featuresPayload[k].length > 0)) {
+    if (Object.values(featuresPayload).some(v => {
+        if (!v) return false;
+        if (Array.isArray(v)) return v.length > 0;
+        if (typeof v === 'object') return Object.keys(v as any).length > 0;
+        return true;
+    })) {
         amenitiesValue = JSON.stringify(featuresPayload);
     }
 

@@ -37,7 +37,9 @@ export class AnnounceService {
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
         parkingCount, outdoorParking, usageType,
-        buildingTypologyMode, buildingApartmentTypologyCustom, buildingApartmentTypologies, buildingCountF3, buildingCountF4, buildingCountF5,
+        buildingTypologyMode, buildingApartmentTypologyCustom, buildingTotalApartments, buildingSurfaceMode,
+        buildingApartmentTypologies, buildingApartmentTypologyOther, buildingApartmentStyle,
+        buildingCountF3, buildingCountF4, buildingCountF5,
         nbSuites, nbLivingRooms, nbBathrooms, bathroomType, nbToilets,
         kitchenType, kitchenState,
         heatingType, acType,
@@ -71,6 +73,15 @@ export class AnnounceService {
         } catch {
             return undefined;
         }
+    };
+    
+    const parseTypologyOther = (v?: string): string[] | undefined => {
+        if (!v) return undefined;
+        const parts = String(v)
+            .split(/[,\s]+/)
+            .map(x => x.trim())
+            .filter(Boolean);
+        return parts.length > 0 ? parts : undefined;
     };
 
     const computedArea =
@@ -110,6 +121,8 @@ export class AnnounceService {
     
     if (propertyType === 'IMMEUBLE_RESIDENTIEL' && buildingTypologyMode) {
         const selectedTypologies = parseJsonArray(buildingApartmentTypologies);
+        const otherTypologies = parseTypologyOther(buildingApartmentTypologyOther);
+        const normalizedSelected = selectedTypologies?.filter(t => t !== 'F10_PLUS');
         const counts: Record<string, number> = {};
         if (selectedTypologies?.includes('F3')) {
             const v = toInt(buildingCountF3);
@@ -127,7 +140,11 @@ export class AnnounceService {
         featuresPayload.buildingTypology = {
             mode: buildingTypologyMode,
             apartmentTypology: buildingApartmentTypologyCustom ? `F${buildingApartmentTypologyCustom}` : undefined,
-            apartmentTypologies: selectedTypologies,
+            apartmentTypologies: normalizedSelected,
+            apartmentTypologiesOther: otherTypologies,
+            apartmentStyle: parseJsonArray(buildingApartmentStyle),
+            totalApartments: toInt(buildingTotalApartments),
+            surfaceMode: buildingSurfaceMode,
             counts: Object.keys(counts).length > 0 ? counts : undefined,
         };
     }

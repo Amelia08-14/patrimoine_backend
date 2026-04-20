@@ -114,7 +114,11 @@ export class CreateAnnounceDto {
 
   @IsString() @IsOptional() buildingTypologyMode?: string;
   @IsString() @IsOptional() buildingApartmentTypologyCustom?: string;
+  @IsString() @IsOptional() buildingTotalApartments?: string;
+  @IsString() @IsOptional() buildingSurfaceMode?: string;
   @IsString() @IsOptional() buildingApartmentTypologies?: string;
+  @IsString() @IsOptional() buildingApartmentTypologyOther?: string;
+  @IsString() @IsOptional() buildingApartmentStyle?: string;
   @IsString() @IsOptional() buildingCountF3?: string;
   @IsString() @IsOptional() buildingCountF4?: string;
   @IsString() @IsOptional() buildingCountF5?: string;

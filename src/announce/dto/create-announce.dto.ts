@@ -106,6 +106,7 @@ export class CreateAnnounceDto {
   @IsString() @IsOptional() configuration?: string;
   @IsString() @IsOptional() floorCount?: string;
   @IsString() @IsOptional() state?: string;
+  @IsString() @IsOptional() facadesCount?: string;
   
   @IsString() @IsOptional() parkingCount?: string;
   @IsString() @IsOptional() outdoorParking?: string;
@@ -143,6 +144,9 @@ export class CreateAnnounceDto {
   @IsString() @IsOptional() rentalUsage?: string;
   @IsString() @IsOptional() chargesIncluded?: string;
   @IsString() @IsOptional() availableDate?: string;
+
+  @IsString() @IsOptional() acceptsBankCredit?: string;
+  @IsString() @IsOptional() legalDocuments?: string;
 
   @IsString() @IsOptional() contacts?: string; // JSON String
 

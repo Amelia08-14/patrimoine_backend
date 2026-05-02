@@ -36,6 +36,7 @@ export class AnnounceService {
         transactionType, price, priceUnit, priceType, area, rooms,
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
+        facadesCount, acceptsBankCredit, legalDocuments,
         parkingCount, outdoorParking, usageType,
         buildingTypologyMode, buildingApartmentTypologyCustom, buildingTotalApartments, buildingSurfaceMode,
         buildingApartmentTypologies, buildingApartmentTypologyOther, buildingApartmentStyle,
@@ -238,6 +239,9 @@ export class AnnounceService {
             typology,
             nbFloors: floorCount ? Number(floorCount) : undefined, // Assuming floorCount maps to nbFloors
             state,
+            facadesCount: toInt(facadesCount),
+            acceptsBankCredit,
+            legalDocuments,
             parkingCount: parkingCount ? Number(parkingCount) : undefined,
             outdoorParking: outdoorParking ? Number(outdoorParking) : undefined,
             usageType,

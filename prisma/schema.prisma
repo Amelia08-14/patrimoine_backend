@@ -195,6 +195,9 @@ model Property {
   typology         String?   // F2, F3...
   configuration    String?   // R+1, R+2...
   state            String?   // Neuf, Rénové, Bon état...
+  facadesCount     Int?
+  acceptsBankCredit String?
+  legalDocuments   String?   @db.Text // JSON array string
   
   // Parking
   parkingCount     Int?      // Garage fermé

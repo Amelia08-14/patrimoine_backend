@@ -92,6 +92,22 @@ export class AnnounceService {
         toFloat(landArea) ??
         0;
 
+    const cleanNumberLike = (v: any) => {
+        if (v === null || v === undefined) return undefined;
+        if (typeof v === 'string') {
+            const s = v.trim().replace(/\s/g, '');
+            return s.length ? s : undefined;
+        }
+        return v;
+    };
+
+    const computedPrice = toFloat(cleanNumberLike(price)) ?? 0;
+
+    const cleanStringOrNull = (v?: string) => {
+        const s = typeof v === 'string' ? v.trim() : '';
+        return s.length ? s : null;
+    };
+
     const computedNbRooms = toInt(rooms) ?? toInt(bedrooms);
     const computedNbPieces = toInt(bedrooms);
     const computedNbLivingRooms = toInt(nbLivingRooms) ?? toInt(livingRooms);
@@ -173,46 +189,53 @@ export class AnnounceService {
         throw new Error("Transaction Type is missing from DTO");
     }
 
-    // Handle City creation/connection manually to avoid unique constraint issues
-    let cityId: number;
-    const existingCity = await this.prisma.city.findFirst({
-        where: { nameFr: city }
-    });
+    const normalizedCity = typeof city === 'string' ? city.trim() : '';
+    const normalizedAddress = typeof address === 'string' ? address.trim() : '';
+    const normalizedCommune = typeof commune === 'string' ? commune.trim() : '';
 
-    if (existingCity) {
-        cityId = existingCity.id;
-    } else {
-        const hash = (value: string) => {
-            let h = 5381;
-            for (let i = 0; i < value.length; i++) {
-                h = ((h << 5) + h) ^ value.charCodeAt(i);
+    let cityId: number | undefined;
+    if (normalizedCity.length > 0) {
+        const existingCity = await this.prisma.city.findFirst({
+            where: { nameFr: normalizedCity }
+        });
+
+        if (existingCity) {
+            cityId = existingCity.id;
+        } else {
+            const hash = (value: string) => {
+                let h = 5381;
+                for (let i = 0; i < value.length; i++) {
+                    h = ((h << 5) + h) ^ value.charCodeAt(i);
+                }
+                return h >>> 0;
+            };
+
+            const baseCode = 1_000_000_000 + (hash(normalizedCity) % 900_000_000);
+            let nextCode = baseCode;
+            let createdCity: any = null;
+
+            for (let attempt = 0; attempt < 5; attempt++) {
+                try {
+                    createdCity = await this.prisma.city.create({
+                        data: {
+                            nameFr: normalizedCity,
+                            nameAr: normalizedCity,
+                            nameEn: normalizedCity,
+                            code: nextCode
+                        }
+                    });
+                    break;
+                } catch (e: any) {
+                    nextCode += 1;
+                    if (attempt === 4) throw e;
+                }
             }
-            return h >>> 0;
-        };
 
-        const baseCode = 1_000_000_000 + (hash(city) % 900_000_000);
-        let nextCode = baseCode;
-        let createdCity: any = null;
-
-        for (let attempt = 0; attempt < 5; attempt++) {
-            try {
-                createdCity = await this.prisma.city.create({
-                    data: {
-                        nameFr: city,
-                        nameAr: city,
-                        nameEn: city,
-                        code: nextCode
-                    }
-                });
-                break;
-            } catch (e: any) {
-                nextCode += 1;
-                if (attempt === 4) throw e;
-            }
+            cityId = createdCity.id;
         }
-
-        cityId = createdCity.id;
     }
+
+    const shouldCreateAddress = normalizedAddress.length > 0 && cityId !== undefined;
 
     try {
       const announce = await this.prisma.announce.create({
@@ -222,9 +245,9 @@ export class AnnounceService {
           shortDescription: (createAnnounceDto as any).shortDescription || null,
           status: AnnounceStatus.WAITING_VALIDATION,
           type: transactionType as TransactionType,
-          price: Number(price),
-          priceUnit,
-          priceType,
+          price: computedPrice,
+          priceUnit: cleanStringOrNull(priceUnit),
+          priceType: cleanStringOrNull(priceType),
         userId: userId,
         property: {
           create: {
@@ -265,21 +288,21 @@ export class AnnounceService {
             mapsLink,
             commune,
             videos: JSON.stringify(videoPaths),
-            address: {
+            address: shouldCreateAddress ? {
               create: {
-                street: address,
+                street: normalizedAddress,
                 town: {
                   create: {
-                    nameFr: commune || city, // Use commune if available, fallback to city
-                    nameAr: commune || city,
-                    nameEn: commune || city,
+                    nameFr: normalizedCommune || normalizedCity,
+                    nameAr: normalizedCommune || normalizedCity,
+                    nameEn: normalizedCommune || normalizedCity,
                     city: {
                       connect: { id: cityId }
                     }
                   }
                 }
               }
-            },
+            } : undefined,
             images: {
               create: imageFiles.map((file, index) => {
                 // Determine category and main image status

@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, ValidateIf } from 'class-validator';
 import { TransactionType } from '@prisma/client';
+import { Transform } from 'class-transformer';
 
 export class CreateAnnounceDto {
   @IsString()
@@ -18,17 +19,19 @@ export class CreateAnnounceDto {
   @IsNotEmpty()
   propertyType: string;
 
+  @ValidateIf((o) => !(o.propertyType === 'USINE' && o.transactionType === 'RENTAL'))
   @IsString()
   @IsNotEmpty()
-  city: string;
+  city?: string;
 
   @IsString()
   @IsOptional()
   commune?: string;
 
+  @ValidateIf((o) => !(o.propertyType === 'USINE' && o.transactionType === 'RENTAL'))
   @IsString()
   @IsNotEmpty()
-  address: string;
+  address?: string;
 
   @IsString()
   @IsOptional()
@@ -38,9 +41,11 @@ export class CreateAnnounceDto {
   @IsOptional()
   area?: string;
 
+  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
+  @ValidateIf((o) => !(o.propertyType === 'USINE' && o.transactionType === 'RENTAL'))
   @IsString()
   @IsNotEmpty()
-  price: string;
+  price?: string;
 
   @IsString()
   @IsOptional()

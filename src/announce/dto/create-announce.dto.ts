@@ -19,7 +19,7 @@ export class CreateAnnounceDto {
   @IsNotEmpty()
   propertyType: string;
 
-  @ValidateIf((o) => !(o.propertyType === 'USINE' && o.transactionType === 'RENTAL'))
+  @ValidateIf((o) => !(['USINE', 'CHAMBRE_FROIDE', 'HANGAR'].includes(o.propertyType) && o.transactionType === 'RENTAL'))
   @IsString()
   @IsNotEmpty()
   city?: string;
@@ -28,7 +28,7 @@ export class CreateAnnounceDto {
   @IsOptional()
   commune?: string;
 
-  @ValidateIf((o) => !(o.propertyType === 'USINE' && o.transactionType === 'RENTAL'))
+  @ValidateIf((o) => !(['USINE', 'CHAMBRE_FROIDE', 'HANGAR'].includes(o.propertyType) && o.transactionType === 'RENTAL'))
   @IsString()
   @IsNotEmpty()
   address?: string;
@@ -42,7 +42,7 @@ export class CreateAnnounceDto {
   area?: string;
 
   @Transform(({ value }) => (value === '' || value === null ? undefined : value))
-  @ValidateIf((o) => !(o.propertyType === 'USINE' && o.transactionType === 'RENTAL'))
+  @ValidateIf((o) => !(['USINE', 'CHAMBRE_FROIDE', 'HANGAR'].includes(o.propertyType) && o.transactionType === 'RENTAL'))
   @IsString()
   @IsNotEmpty()
   price?: string;

@@ -151,6 +151,7 @@ export class CreateAnnounceDto {
   @IsString() @IsOptional() availableDate?: string;
 
   @IsString() @IsOptional() acceptsBankCredit?: string;
+  @IsString() @IsOptional() acceptsCrossUsage?: string;
   @IsString() @IsOptional() legalDocuments?: string;
 
   @IsString() @IsOptional() contacts?: string; // JSON String

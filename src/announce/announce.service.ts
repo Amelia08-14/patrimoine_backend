@@ -37,7 +37,7 @@ export class AnnounceService {
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
         facadesCount, acceptsBankCredit, legalDocuments,
-        parkingCount, outdoorParking, usageType,
+        parkingCount, outdoorParking, usageType, acceptsCrossUsage,
         buildingTypologyMode, buildingApartmentTypologyCustom, buildingTotalApartments, buildingSurfaceMode,
         buildingApartmentTypologies, buildingApartmentTypologyOther, buildingApartmentStyle,
         buildingCountF3, buildingCountF4, buildingCountF5,
@@ -283,6 +283,16 @@ export class AnnounceService {
             depositMonths: depositMonths ? Number(depositMonths) : undefined,
             rentalUsage,
             chargesIncluded: chargesIncluded === 'true' || (chargesIncluded as any) === true,
+            acceptsCrossUsage: acceptsCrossUsage === 'true' || (acceptsCrossUsage as any) === true,
+            crossRealEstateType: (() => {
+                const isCross = acceptsCrossUsage === 'true' || (acceptsCrossUsage as any) === true;
+                if (!isCross) return undefined;
+                const RESIDENTIAL = ['VILLA','NIVEAU_VILLA','APPARTEMENT','DUPLEX','TRIPLEX','STUDIO','IMMEUBLE_RESIDENTIEL'];
+                const COMMERCIAL = ['VILLA_COMMERCIALE','NIVEAU_VILLA_COMMERCIAL','APPARTEMENT_COMMERCIAL','IMMEUBLE_BUREAU'];
+                if (RESIDENTIAL.includes(propertyType)) return 'BUREAUX_COMMERCES';
+                if (COMMERCIAL.includes(propertyType)) return 'RESIDENTIEL';
+                return undefined;
+            })(),
             availableDate: availableDate ? new Date(availableDate) : undefined,
             contacts, // Added contacts
             mapsLink,

@@ -230,6 +230,10 @@ model Property {
   depositMonths    Int?      // Caution
   rentalUsage      String?   // Habitation / Pro
   chargesIncluded  Boolean   @default(false)
+
+  // Cross-category publication
+  acceptsCrossUsage    Boolean @default(false)
+  crossRealEstateType  String? // Catégorie miroir (RESIDENTIEL <-> BUREAUX_COMMERCES)
   
   // Contacts
   contacts         String?   @db.Text // JSON string: [{ phone: string, whatsapp: boolean, viber: boolean }]

@@ -453,4 +453,36 @@ export class AnnounceService {
       }
     });
   }
+
+  async findByUserPublic(userId: number) {
+    return this.prisma.announce.findMany({
+      where: { userId, status: AnnounceStatus.VALIDATED },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            companyName: true,
+            userType: true,
+            agencyLogoUrl: true,
+            phone: true,
+          }
+        },
+        property: {
+          include: {
+            images: true,
+            address: {
+              include: {
+                town: {
+                  include: { city: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 }

@@ -25,6 +25,11 @@ export class AnnounceController {
     return this.announceService.findByUser(req.user.userId);
   }
 
+  @Get('user/:userId')
+  async findUserAnnounces(@Param('userId') userId: string) {
+    return this.announceService.findByUserPublic(Number(userId));
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const announce = await this.announceService.findOne(Number(id));

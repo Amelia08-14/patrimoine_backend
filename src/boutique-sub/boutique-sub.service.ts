@@ -54,7 +54,7 @@ export class BoutiqueSubService {
     return this.prisma.boutiqueSubscription.findMany({
       where: status ? { status } : {},
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true, companyName: true, activityType: true } }
+        user: { select: { id: true, firstName: true, lastName: true, email: true, companyName: true } }
       },
       orderBy: { createdAt: 'desc' }
     });

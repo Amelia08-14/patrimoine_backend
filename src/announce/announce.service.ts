@@ -357,7 +357,10 @@ export class AnnounceService {
   async findAll() {
     return this.prisma.announce.findMany({
       where: { status: AnnounceStatus.VALIDATED },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { refreshDate: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' }
+      ],
       include: {
         user: {
           select: {
@@ -443,7 +446,10 @@ export class AnnounceService {
   async findByUser(userId: number) {
     return this.prisma.announce.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { refreshDate: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' }
+      ],
       include: {
         property: {
           include: {
@@ -457,7 +463,10 @@ export class AnnounceService {
   async findByUserPublic(userId: number) {
     return this.prisma.announce.findMany({
       where: { userId, status: AnnounceStatus.VALIDATED },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { refreshDate: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' }
+      ],
       include: {
         user: {
           select: {

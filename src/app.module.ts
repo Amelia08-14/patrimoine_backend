@@ -13,6 +13,8 @@ import { EntrustedResearchModule } from './entrusted-research/entrusted-research
 import { FavoriteModule } from './favorite/favorite.module';
 import { MessageModule } from './message/message.module';
 import { LocationModule } from './location/location.module';
+import { PointsModule } from './points/points.module';
+import { BoutiqueSubModule } from './boutique-sub/boutique-sub.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { LocationModule } from './location/location.module';
     FavoriteModule,
     MessageModule,
     LocationModule,
+    PointsModule,
+    BoutiqueSubModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

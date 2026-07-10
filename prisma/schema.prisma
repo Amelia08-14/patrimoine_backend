@@ -59,6 +59,8 @@ model User {
   entrustedResearch EntrustedResearch[]
   points        UserPoint?
   pointUsages   PointUsage[]
+  pointPurchases PointPurchase[]
+  boutiqueSubscriptions BoutiqueSubscription[]
   favorites     Favorite[]
   sentMessages     Message[]  @relation("SentMessages")
   receivedMessages Message[]  @relation("ReceivedMessages")
@@ -81,14 +83,46 @@ model PointUsage {
   id         Int      @id @default(autoincrement())
   pointsUsed Int
   usageDate  DateTime @default(now())
+  action     String   @default("BOOST") // BOOST | FEATURE
 
   userId     Int
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   announceId Int
   announce   Announce @relation(fields: [announceId], references: [id], onDelete: Cascade)
 
   @@map("point_usage")
+}
+
+model PointPurchase {
+  id          Int       @id @default(autoincrement())
+  pack        String    // PACK_50 | PACK_100 | PACK_200
+  points      Int       // 50 | 100 | 200
+  price       Int       // 1500 | 2500 | 3500
+  status      String    @default("PENDING") // PENDING | VALIDATED | REJECTED
+  createdAt   DateTime  @default(now())
+  validatedAt DateTime?
+
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("point_purchase")
+}
+
+model BoutiqueSubscription {
+  id             Int       @id @default(autoincrement())
+  pack           String    // STANDARD | AVANCEE | ENTREPRISE
+  price          Int       // 5000 | 10000 | 15000
+  pointsIncluded Int       // 50 | 100 | 200
+  status         String    @default("PENDING") // PENDING | VALIDATED | REJECTED
+  createdAt      DateTime  @default(now())
+  validatedAt    DateTime?
+  expiresAt      DateTime? // date d'expiration des points (1 mois)
+
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("boutique_subscription")
 }
 
 // --- Locations (City / Town / Address) ---
@@ -150,6 +184,8 @@ model Announce {
   updatedAt       DateTime  @updatedAt
   refreshDate     DateTime?
   expirationDate  DateTime? // mapped from 'expiredDate'
+  featuredFrom    DateTime? // publicité accueil: début
+  featuredUntil   DateTime? // publicité accueil: fin
 
   nbViews         Int       @default(0)
   nbFavs          Int       @default(0)

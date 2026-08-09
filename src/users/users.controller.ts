@@ -38,6 +38,9 @@ export class UsersController {
     { name: 'rcDocument', maxCount: 1 },
     { name: 'agreementDocument', maxCount: 1 },
     { name: 'agencyLogo', maxCount: 1 },
+    { name: 'nifDocument', maxCount: 1 },
+    { name: 'nisDocument', maxCount: 1 },
+    { name: 'inapiDocument', maxCount: 1 },
   ], {
     storage: diskStorage({
       destination: './uploads/documents',
@@ -54,13 +57,19 @@ export class UsersController {
       rcDocument?: Express.Multer.File[];
       agreementDocument?: Express.Multer.File[];
       agencyLogo?: Express.Multer.File[];
+      nifDocument?: Express.Multer.File[];
+      nisDocument?: Express.Multer.File[];
+      inapiDocument?: Express.Multer.File[];
     },
   ) {
     const userId = req.user.userId;
-    
+
     let rcDocumentUrl = undefined;
     let agreementDocumentUrl = undefined;
     let logoUrl = undefined;
+    let nifDocumentUrl = undefined;
+    let nisDocumentUrl = undefined;
+    let inapiDocumentUrl = undefined;
 
     if (files?.rcDocument?.[0]) {
       rcDocumentUrl = `/uploads/documents/${files.rcDocument[0].filename}`;
@@ -70,6 +79,15 @@ export class UsersController {
     }
     if (files?.agencyLogo?.[0]) {
       logoUrl = `/uploads/documents/${files.agencyLogo[0].filename}`;
+    }
+    if (files?.nifDocument?.[0]) {
+      nifDocumentUrl = `/uploads/documents/${files.nifDocument[0].filename}`;
+    }
+    if (files?.nisDocument?.[0]) {
+      nisDocumentUrl = `/uploads/documents/${files.nisDocument[0].filename}`;
+    }
+    if (files?.inapiDocument?.[0]) {
+      inapiDocumentUrl = `/uploads/documents/${files.inapiDocument[0].filename}`;
     }
 
     // Si le mot de passe est fourni, on le hash (pour la page info)
@@ -98,11 +116,17 @@ export class UsersController {
         townId: body.townId ? Number(body.townId) : undefined,
         companyName: body.companyName,
         commercialRegister: body.commercialRegister,
+        nif: body.nif,
+        nis: body.nis,
         position: body.position,
+        agreementExpiryDate: body.agreementExpiryDate ? new Date(body.agreementExpiryDate) : undefined,
         ...(passwordHash && { passwordHash }),
         ...(rcDocumentUrl && { rcDocumentUrl }),
         ...(agreementDocumentUrl && { agreementDocumentUrl }),
         ...(logoUrl && { agencyLogoUrl: logoUrl }),
+        ...(nifDocumentUrl && { nifDocumentUrl }),
+        ...(nisDocumentUrl && { nisDocumentUrl }),
+        ...(inapiDocumentUrl && { inapiDocumentUrl }),
       },
       select: {
         id: true,
@@ -117,7 +141,13 @@ export class UsersController {
         address: true,
         position: true,
         rcDocumentUrl: true,
-        agreementDocumentUrl: true
+        agreementDocumentUrl: true,
+        nif: true,
+        nis: true,
+        nifDocumentUrl: true,
+        nisDocumentUrl: true,
+        inapiDocumentUrl: true,
+        agreementExpiryDate: true,
       }
     });
   }

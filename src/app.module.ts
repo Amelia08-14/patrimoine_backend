@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -15,6 +16,7 @@ import { MessageModule } from './message/message.module';
 import { LocationModule } from './location/location.module';
 import { PointsModule } from './points/points.module';
 import { BoutiqueSubModule } from './boutique-sub/boutique-sub.module';
+import { ContentModule } from './content/content.module';
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { BoutiqueSubModule } from './boutique-sub/boutique-sub.module';
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
     }),
+    ScheduleModule.forRoot(),
     AuthModule,
     AnnounceModule,
     UsersModule,
@@ -33,6 +36,7 @@ import { BoutiqueSubModule } from './boutique-sub/boutique-sub.module';
     LocationModule,
     PointsModule,
     BoutiqueSubModule,
+    ContentModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

@@ -40,16 +40,25 @@ model User {
   companyName   String?
   companyActivity CompanyActivity?
   commercialRegister String?
-  
+  nif                String? // Numéro d'Identification Fiscale
+  nis                String? // Numéro d'Identification Statistique
+
   // Documents (Société)
   rcDocumentUrl      String?
   agreementDocumentUrl String?
+  nifDocumentUrl     String?
+  nisDocumentUrl     String?
+  inapiDocumentUrl   String? // Justificatif de dépôt INAPI (si le nom de marque n'apparaît pas sur le RC)
   agencyLogoUrl      String?
   position           String?
-  
-  // Status
+
+  // Conformité & statut de compte
+  agreementExpiryDate DateTime? // Désactivation automatique des services pro à cette date
   adminVerified Boolean   @default(false)
-  
+  accountStatus AccountStatus @default(ACTIVE)
+  statusReason  String?
+  lastLoginAt   DateTime?
+
   townId        Int?
   
   createdAt     DateTime  @default(now())
@@ -341,6 +350,12 @@ enum TransactionType {
   HOLIDAY_RENTAL
 }
 
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+}
+
 enum UserType {
   PARTICULIER
   SOCIETE
@@ -433,4 +448,51 @@ model EntrustedResearch {
   createdAt        DateTime @default(now())
 
   @@map("entrusted_research")
+}
+
+// --- Contenu du site (géré depuis l'administration) ---
+
+model SiteSetting {
+  key       String   @id // ex: CONTACT_PHONE, CONTACT_EMAIL, CONTACT_ADDRESS, SUPPORT_CONTENT
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("site_setting")
+}
+
+model LegalSection {
+  id        Int      @id @default(autoincrement())
+  page      String   // 'CGU' | 'CONFIDENTIALITE'
+  title     String
+  body      String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("legal_section")
+}
+
+model FaqItem {
+  id        Int      @id @default(autoincrement())
+  question  String
+  answer    String   @db.Text
+  order     Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("faq_item")
+}
+
+model Partner {
+  id         Int      @id @default(autoincrement())
+  name       String
+  logoUrl    String?
+  websiteUrl String?
+  order      Int      @default(0)
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("partner")
 }

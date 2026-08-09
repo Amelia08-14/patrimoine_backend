@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE `user` ADD COLUMN `accountStatus` ENUM('ACTIVE', 'SUSPENDED', 'BLOCKED') NOT NULL DEFAULT 'ACTIVE',
+    ADD COLUMN `agreementExpiryDate` DATETIME(3) NULL,
+    ADD COLUMN `inapiDocumentUrl` VARCHAR(191) NULL,
+    ADD COLUMN `lastLoginAt` DATETIME(3) NULL,
+    ADD COLUMN `nif` VARCHAR(191) NULL,
+    ADD COLUMN `nifDocumentUrl` VARCHAR(191) NULL,
+    ADD COLUMN `nis` VARCHAR(191) NULL,
+    ADD COLUMN `nisDocumentUrl` VARCHAR(191) NULL,
+    ADD COLUMN `statusReason` VARCHAR(191) NULL;
+

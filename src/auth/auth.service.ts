@@ -4,7 +4,7 @@ import { CreateAuthDto } from './dto/create-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
-import { UserType } from '@prisma/client';
+import { UserType, AccountStatus } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -137,6 +137,20 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
+
+    // Statut de compte (suspendu / bloqué par l'administrateur)
+    if (user.accountStatus === AccountStatus.BLOCKED) {
+      throw new UnauthorizedException(
+        user.statusReason ? `Compte bloqué : ${user.statusReason}` : 'Votre compte a été bloqué. Contactez le support.'
+      );
+    }
+    if (user.accountStatus === AccountStatus.SUSPENDED) {
+      throw new UnauthorizedException(
+        user.statusReason ? `Compte suspendu : ${user.statusReason}` : 'Votre compte est suspendu. Contactez le support.'
+      );
+    }
+
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
     // Vérifier si le profil est complet (basé sur le type)
     let isProfileComplete = true;

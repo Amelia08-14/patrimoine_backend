@@ -1,6 +1,6 @@
-import { Controller, Get, Patch, Param, Body, UseGuards, Req, Put, Delete } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, Req, Put, Delete, Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AnnounceStatus } from '@prisma/client';
+import { AnnounceStatus, AccountStatus } from '@prisma/client';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
@@ -9,9 +9,14 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('users')
-  async getAllUsers(@Req() req: any) {
+  async getAllUsers(
+    @Req() req: any,
+    @Query('wilaya') wilaya?: string,
+    @Query('commune') commune?: string,
+    @Query('search') search?: string,
+  ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getAllUsers();
+    return this.adminService.getAllUsers({ wilaya, commune, search });
   }
 
   @Get('users/pending')
@@ -26,6 +31,12 @@ export class AdminController {
     return this.adminService.validateUser(Number(id));
   }
 
+  @Put('users/:id/status')
+  async updateUserStatus(@Req() req: any, @Param('id') id: string, @Body() body: { status: AccountStatus; reason?: string }) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.updateUserStatus(Number(id), body.status, body.reason);
+  }
+
   @Delete('users/:id')
   async deleteUser(@Req() req: any, @Param('id') id: string) {
     await this.adminService.checkAdmin(req.user.userId);
@@ -33,9 +44,14 @@ export class AdminController {
   }
 
   @Get('announces')
-  async getAllAnnounces(@Req() req: any) {
+  async getAllAnnounces(
+    @Req() req: any,
+    @Query('wilaya') wilaya?: string,
+    @Query('commune') commune?: string,
+    @Query('search') search?: string,
+  ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getAllAnnounces();
+    return this.adminService.getAllAnnounces({ wilaya, commune, search });
   }
 
   @Get('announces/pending')
@@ -48,5 +64,11 @@ export class AdminController {
   async updateAnnounceStatus(@Req() req: any, @Param('id') id: string, @Body() body: { status: AnnounceStatus }) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.adminService.updateAnnounceStatus(Number(id), body.status);
+  }
+
+  @Get('search')
+  async globalSearch(@Req() req: any, @Query('q') q: string) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.globalSearch(q || '');
   }
 }

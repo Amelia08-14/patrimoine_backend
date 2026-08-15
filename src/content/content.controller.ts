@@ -22,7 +22,7 @@ export class ContentController {
 
   @Get('content/legal/:page')
   getLegalSections(@Param('page') page: string) {
-    return this.contentService.getLegalSections(page.toUpperCase());
+    return this.contentService.getLegalSections(page.toUpperCase(), true);
   }
 
   @Get('content/faq')
@@ -48,7 +48,7 @@ export class ContentController {
   @UseGuards(JwtAuthGuard)
   async adminGetLegalSections(@Req() req: any, @Param('page') page: string) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.contentService.getLegalSections(page.toUpperCase());
+    return this.contentService.getLegalSections(page.toUpperCase(), false);
   }
 
   @Post('admin/content/legal/:page')
@@ -60,7 +60,7 @@ export class ContentController {
 
   @Put('admin/content/legal/section/:id')
   @UseGuards(JwtAuthGuard)
-  async updateLegalSection(@Req() req: any, @Param('id') id: string, @Body() body: { title?: string; body?: string; order?: number }) {
+  async updateLegalSection(@Req() req: any, @Param('id') id: string, @Body() body: { title?: string; body?: string; order?: number; published?: boolean }) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.updateLegalSection(Number(id), body);
   }

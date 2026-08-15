@@ -1,4 +1,6 @@
-import { IsEmail, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+
+export const CONTACT_MOTIFS = ['COMMERCIAL', 'JURIDIQUE', 'TECHNIQUE', 'GENERAL'] as const;
 
 export class CreateContactDto {
   @IsString()
@@ -21,4 +23,8 @@ export class CreateContactDto {
   @MinLength(3)
   @MaxLength(2000)
   message: string;
+
+  @IsOptional()
+  @IsIn(CONTACT_MOTIFS)
+  motif?: string;
 }

@@ -196,8 +196,9 @@ model Announce {
   featuredFrom    DateTime? // publicité accueil: début
   featuredUntil   DateTime? // publicité accueil: fin
 
-  nbViews         Int       @default(0)
+  nbViews         Int       @default(0) // Clics sur l'annonce (incrémenté à chaque consultation)
   nbFavs          Int       @default(0)
+  nbCalls         Int       @default(0) // Clics sur le bouton d'appel
 
   userId          Int
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -250,6 +251,7 @@ model Property {
 
   // Lifestyle
   usageType        String?   // Communicante / Séparé
+  cadreModeVie     String?   // Résidence fermée/Promotion, Quartier résidentiel/Standing, Quartier classique
 
   // Spaces
   nbSuites         Int?
@@ -395,13 +397,15 @@ enum Civility {
 // --- New Models for Migration ---
 
 model Contact {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String
-  subject   String
-  message   String   @db.Text
-  createdAt DateTime @default(now())
-  status    String?  @default("NEW") // NEW, READ, ARCHIVED
+  id            Int      @id @default(autoincrement())
+  name          String
+  email         String
+  subject       String
+  message       String   @db.Text
+  motif         String   @default("GENERAL") // COMMERCIAL | JURIDIQUE | TECHNIQUE | GENERAL
+  attachmentUrl String?
+  createdAt     DateTime @default(now())
+  status        String?  @default("NEW") // NEW, READ, ARCHIVED
 
   @@map("contact")
 }
@@ -464,7 +468,8 @@ model LegalSection {
   id        Int      @id @default(autoincrement())
   page      String   // 'CGU' | 'CONFIDENTIALITE'
   title     String
-  body      String   @db.Text
+  body      String   @db.Text // HTML enrichi (éditeur riche admin)
+  published Boolean  @default(true)
   order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

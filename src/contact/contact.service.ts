@@ -6,10 +6,11 @@ import { CreateContactDto } from './dto/create-contact.dto';
 export class ContactService {
   constructor(private prisma: PrismaService) {}
 
-  create(createContactDto: CreateContactDto) {
+  create(data: CreateContactDto & { attachmentUrl?: string }) {
     return this.prisma.contact.create({
       data: {
-        ...createContactDto,
+        ...data,
+        motif: data.motif || 'GENERAL',
         status: 'NEW',
       },
     });
@@ -19,5 +20,9 @@ export class ContactService {
     return this.prisma.contact.findMany({
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  updateStatus(id: number, status: string) {
+    return this.prisma.contact.update({ where: { id }, data: { status } });
   }
 }

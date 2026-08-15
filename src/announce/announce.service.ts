@@ -37,7 +37,7 @@ export class AnnounceService {
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
         facadesCount, acceptsBankCredit, legalDocuments,
-        parkingCount, outdoorParking, usageType, acceptsCrossUsage,
+        parkingCount, outdoorParking, usageType, acceptsCrossUsage, cadreModeVie,
         buildingTypologyMode, buildingApartmentTypologyCustom, buildingTotalApartments, buildingSurfaceMode,
         buildingApartmentTypologies, buildingApartmentTypologyOther, buildingApartmentStyle,
         buildingCountF3, buildingCountF4, buildingCountF5,
@@ -268,6 +268,7 @@ export class AnnounceService {
             parkingCount: parkingCount ? Number(parkingCount) : undefined,
             outdoorParking: outdoorParking ? Number(outdoorParking) : undefined,
             usageType,
+            cadreModeVie,
             nbSuites: nbSuites ? Number(nbSuites) : undefined,
             nbLivingRooms: computedNbLivingRooms,
             nbBathrooms: computedNbBathrooms,
@@ -400,6 +401,14 @@ export class AnnounceService {
           }
         }
       }
+    });
+  }
+
+  async incrementCalls(id: number) {
+    return this.prisma.announce.update({
+      where: { id },
+      data: { nbCalls: { increment: 1 } },
+      select: { id: true, nbCalls: true },
     });
   }
 

@@ -27,9 +27,9 @@ export class ContentService {
 
   // --- Sections de pages légales (CGU / Confidentialité) ---
 
-  async getLegalSections(page: string) {
+  async getLegalSections(page: string, publishedOnly: boolean) {
     return this.prisma.legalSection.findMany({
-      where: { page },
+      where: { page, ...(publishedOnly ? { published: true } : {}) },
       orderBy: { order: 'asc' },
     });
   }
@@ -38,7 +38,7 @@ export class ContentService {
     return this.prisma.legalSection.create({ data: { page, title, body, order } });
   }
 
-  async updateLegalSection(id: number, data: { title?: string; body?: string; order?: number }) {
+  async updateLegalSection(id: number, data: { title?: string; body?: string; order?: number; published?: boolean }) {
     return this.prisma.legalSection.update({ where: { id }, data });
   }
 

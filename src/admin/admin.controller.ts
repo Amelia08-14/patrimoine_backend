@@ -43,6 +43,18 @@ export class AdminController {
     return this.adminService.rejectUser(Number(id));
   }
 
+  @Get('partners')
+  async getPartners(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('status') status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED',
+    @Query('accountType') accountType?: 'ALL' | 'PRO' | 'PARTICULIER',
+    @Query('pole') pole?: 'ALL' | 'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE',
+  ) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getPartners({ search, status, accountType, pole });
+  }
+
   @Get('announces')
   async getAllAnnounces(
     @Req() req: any,
@@ -64,6 +76,40 @@ export class AdminController {
   async updateAnnounceStatus(@Req() req: any, @Param('id') id: string, @Body() body: { status: AnnounceStatus }) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.adminService.updateAnnounceStatus(Number(id), body.status);
+  }
+
+  @Patch('announces/:id/feature')
+  async featureAnnounce(@Req() req: any, @Param('id') id: string, @Body() body: { durationDays?: number }) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.featureAnnounce(Number(id), body.durationDays ?? 30);
+  }
+
+  @Patch('announces/:id/unfeature')
+  async unfeatureAnnounce(@Req() req: any, @Param('id') id: string) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.unfeatureAnnounce(Number(id));
+  }
+
+  @Get('announces/featured-kpis')
+  async getFeaturedKpis(@Req() req: any) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getFeaturedKpis();
+  }
+
+  @Get('contacts')
+  async getContacts(
+    @Req() req: any,
+    @Query('motif') motif?: string,
+    @Query('status') status?: string,
+  ) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getContacts({ motif, status });
+  }
+
+  @Patch('contacts/:id/status')
+  async updateContactStatus(@Req() req: any, @Param('id') id: string, @Body() body: { status: string }) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.updateContactStatus(Number(id), body.status);
   }
 
   @Get('search')

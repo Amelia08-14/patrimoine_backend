@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `contact`
+  ADD COLUMN `motif` VARCHAR(191) NOT NULL DEFAULT 'GENERAL',
+  ADD COLUMN `attachmentUrl` VARCHAR(191) NULL;

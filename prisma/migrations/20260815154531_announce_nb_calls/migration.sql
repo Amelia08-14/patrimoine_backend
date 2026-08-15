@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `announce` ADD COLUMN `nbCalls` INTEGER NOT NULL DEFAULT 0;

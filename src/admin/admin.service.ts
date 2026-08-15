@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { AnnounceStatus, UserType, AccountStatus } from '@prisma/client';
+import { AnnounceStatus, UserType, AccountStatus, CompanyActivity } from '@prisma/client';
 
 const USER_LIST_SELECT = {
   id: true,
@@ -24,10 +24,53 @@ const USER_LIST_SELECT = {
   createdAt: true,
   lastLoginAt: true,
   userType: true,
+  companyActivity: true,
   adminVerified: true,
   accountStatus: true,
   statusReason: true,
 } as const;
+
+// Segmentation des CompanyActivity en 4 pôles d'activité (dashboard "Partenaires")
+export const ACTIVITY_POLES: Record<'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE', CompanyActivity[]> = {
+  IMMOBILIER: [
+    CompanyActivity.AGENCE_IMMOBILIERE,
+    CompanyActivity.PROMOTEUR_IMMOBILIER,
+    CompanyActivity.ADMINISTRATEUR_BIENS,
+    CompanyActivity.AUTRES_PROFESSIONNELS,
+  ],
+  HOTELLERIE: [
+    CompanyActivity.HOTELLERIE_HEBERGEMENT,
+    CompanyActivity.HOTEL,
+    CompanyActivity.COMPLEXE_TOURISTIQUE,
+    CompanyActivity.VILLAGE_VACANCES,
+    CompanyActivity.APPART_HOTEL,
+    CompanyActivity.RESIDENCE_HOTELIERE,
+    CompanyActivity.MOTEL,
+    CompanyActivity.RELAIS_ROUTIER,
+    CompanyActivity.CAMPING_TOURISTIQUE,
+    CompanyActivity.AUTRES_STRUCTURES,
+  ],
+  EVENEMENTIEL: [
+    CompanyActivity.SALLE_DES_FETES,
+    CompanyActivity.SALLES_DINATOIRES,
+    CompanyActivity.SALLE_FORMATION,
+    CompanyActivity.SALLE_CONFERENCE,
+    CompanyActivity.AUTRES_EVENEMENTIEL,
+  ],
+  ENTREPOSAGE: [
+    CompanyActivity.ENTREPOSAGE_FRIGORIFIQUE,
+    CompanyActivity.ENTREPOSAGE_NON_FRIGORIFIQUE,
+    CompanyActivity.AUTRES_ENTREPOSAGE_STOCKAGE,
+  ],
+};
+
+function poleForActivity(activity: CompanyActivity | null | undefined): string | null {
+  if (!activity) return null;
+  for (const [pole, activities] of Object.entries(ACTIVITY_POLES)) {
+    if (activities.includes(activity)) return pole;
+  }
+  return null;
+}
 
 @Injectable()
 export class AdminService {
@@ -147,6 +190,75 @@ export class AdminService {
     return result;
   }
 
+  // --- Partenaires : dashboard segmenté par pôle d'activité ---
+
+  async getPartners(filters?: {
+    search?: string;
+    status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED';
+    accountType?: 'ALL' | 'PRO' | 'PARTICULIER';
+    pole?: 'ALL' | keyof typeof ACTIVITY_POLES;
+  }) {
+    const search = filters?.search?.trim();
+    const status = filters?.status || 'ALL';
+    const accountType = filters?.accountType || 'ALL';
+    const pole = filters?.pole || 'ALL';
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        NOT: { userType: UserType.ADMIN },
+        ...(accountType === 'PRO' ? { userType: UserType.SOCIETE } : {}),
+        ...(accountType === 'PARTICULIER' ? { userType: UserType.PARTICULIER } : {}),
+        ...(status === 'ACTIVE' ? { accountStatus: AccountStatus.ACTIVE } : {}),
+        ...(status === 'PENDING' ? { adminVerified: false } : {}),
+        ...(status === 'SUSPENDED' ? { accountStatus: { in: [AccountStatus.SUSPENDED, AccountStatus.BLOCKED] } } : {}),
+        ...(pole !== 'ALL' ? { companyActivity: { in: ACTIVITY_POLES[pole] } } : {}),
+        ...(search
+          ? {
+              OR: [
+                { firstName: { contains: search } },
+                { lastName: { contains: search } },
+                { email: { contains: search } },
+                { companyName: { contains: search } },
+                { phone: { contains: search } },
+                { commercialRegister: { contains: search } },
+                { nif: { contains: search } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        ...USER_LIST_SELECT,
+        _count: { select: { announces: { where: { status: AnnounceStatus.VALIDATED } } } },
+      },
+    });
+
+    // Résolution des localisations (townId -> wilaya/commune) en un seul aller-retour
+    const townIds = [...new Set(users.map((u) => u.townId).filter((id): id is number => !!id))];
+    const towns = townIds.length
+      ? await this.prisma.town.findMany({
+          where: { id: { in: townIds } },
+          include: { city: true },
+        })
+      : [];
+    const townMap = new Map(towns.map((t) => [t.id, t]));
+
+    return users.map((u) => {
+      // Les particuliers ne portent pas de companyActivity : faute d'un marqueur de pôle
+      // dédié sur les comptes B2C, ils sont rattachés par défaut au pôle Immobilier
+      // (seul pôle actuellement modélisé par les annonces/Property). À affiner si un
+      // champ de pôle est ajouté pour les comptes particuliers.
+      const resolvedPole = u.userType === UserType.PARTICULIER ? 'IMMOBILIER' : poleForActivity(u.companyActivity);
+      const town = u.townId ? townMap.get(u.townId) : undefined;
+      return {
+        ...u,
+        pole: resolvedPole,
+        location: town ? `${town.nameFr} (${town.city.nameFr})` : null,
+        announcesCount: u._count.announces,
+      };
+    });
+  }
+
   // --- Announces Management ---
 
   async getAllAnnounces(filters?: { wilaya?: string; commune?: string; search?: string }) {
@@ -243,6 +355,62 @@ export class AdminService {
       where: { id: announceId },
       data: { status },
     });
+  }
+
+  // --- Mise en avant "Première page" & suivi KPI ---
+
+  async featureAnnounce(announceId: number, durationDays: number) {
+    const featuredFrom = new Date();
+    const featuredUntil = new Date(featuredFrom);
+    featuredUntil.setDate(featuredUntil.getDate() + (durationDays > 0 ? durationDays : 30));
+    return this.prisma.announce.update({
+      where: { id: announceId },
+      data: { featuredFrom, featuredUntil },
+    });
+  }
+
+  async unfeatureAnnounce(announceId: number) {
+    return this.prisma.announce.update({
+      where: { id: announceId },
+      data: { featuredFrom: null, featuredUntil: null },
+    });
+  }
+
+  async getFeaturedKpis() {
+    return this.prisma.announce.findMany({
+      where: { featuredFrom: { not: null } },
+      orderBy: { featuredFrom: 'desc' },
+      select: {
+        id: true,
+        reference: true,
+        title: true,
+        status: true,
+        nbViews: true,
+        nbCalls: true,
+        featuredFrom: true,
+        featuredUntil: true,
+        property: { select: { propertyType: true } },
+      },
+    });
+  }
+
+  // --- Module Contact & Support : requêtes soumises via "Nous Contacter" ---
+
+  async getContacts(filters?: { motif?: string; status?: string }) {
+    return this.prisma.contact.findMany({
+      where: {
+        ...(filters?.motif && filters.motif !== 'ALL' ? { motif: filters.motif } : {}),
+        ...(filters?.status && filters.status !== 'ALL' ? { status: filters.status } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateContactStatus(id: number, status: string) {
+    if (!['NEW', 'READ', 'ARCHIVED'].includes(status)) {
+      throw new BadRequestException('Statut invalide');
+    }
+    return this.prisma.contact.update({ where: { id }, data: { status } });
   }
 
   // --- Recherche rapide globale ---

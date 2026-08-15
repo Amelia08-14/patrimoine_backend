@@ -37,6 +37,12 @@ export class AnnounceController {
     return announce;
   }
 
+  // Suivi KPI : incrémenté quand un visiteur clique sur le bouton d'appel de l'annonce
+  @Post(':id/call')
+  async trackCall(@Param('id') id: string) {
+    return this.announceService.incrementCalls(Number(id));
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post()
   @UseInterceptors(FileFieldsInterceptor([

@@ -110,12 +110,12 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    console.log('Login attempt with:', JSON.stringify(loginDto));
     const { email, password } = loginDto;
+    const normalizedEmail = email.trim().toLowerCase();
 
     // Trouver l'utilisateur
     const user = await this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {

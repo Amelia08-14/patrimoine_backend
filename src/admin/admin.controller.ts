@@ -43,6 +43,12 @@ export class AdminController {
     return this.adminService.rejectUser(Number(id));
   }
 
+  @Put('users/:id/password')
+  async resetUserPassword(@Req() req: any, @Param('id') id: string, @Body() body: { newPassword: string }) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.resetUserPassword(Number(id), body.newPassword);
+  }
+
   @Get('partners')
   async getPartners(
     @Req() req: any,

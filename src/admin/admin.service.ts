@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnnounceStatus, UserType, AccountStatus, CompanyActivity } from '@prisma/client';
 
@@ -151,6 +152,21 @@ export class AdminService {
     return this.prisma.user.delete({
       where: { id: userId },
     });
+  }
+
+  // --- Réinitialisation du mot de passe d'un client par l'administrateur ---
+
+  async resetUserPassword(userId: number, newPassword: string) {
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Le mot de passe doit contenir au moins 6 caractères');
+    }
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+    return { message: 'Mot de passe réinitialisé avec succès' };
   }
 
   // --- Statuts de compte (activer / suspendre / bloquer) ---

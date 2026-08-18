@@ -97,7 +97,21 @@ export class UsersController {
       passwordHash = await bcrypt.hash(body.newPassword, 10);
     }
 
-    // Construct full address if wilaya/commune provided and no townId (pour la page complete)
+    // Resolve the selected commune to the real database town id. The completion
+    // form sends the wilaya code and commune name, while User stores a Town id.
+    let resolvedTownId = body.townId ? Number(body.townId) : undefined;
+    if (!resolvedTownId && body.commune && body.wilaya) {
+      const town = await this.prisma.town.findFirst({
+        where: {
+          nameFr: body.commune,
+          city: { code: Number(body.wilaya) },
+        },
+        select: { id: true },
+      });
+      resolvedTownId = town?.id;
+    }
+
+    // Keep a readable full address in addition to the normalized town id.
     let fullAddress = body.address;
     if (body.commune && body.wilaya) {
         fullAddress = `${body.address}, ${body.commune}, Wilaya ${body.wilaya}`;
@@ -113,7 +127,7 @@ export class UsersController {
         phone: body.phone,
         landline: body.landline,
         address: fullAddress,
-        townId: body.townId ? Number(body.townId) : undefined,
+        townId: resolvedTownId,
         companyName: body.companyName,
         commercialRegister: body.commercialRegister,
         nif: body.nif,
@@ -138,7 +152,11 @@ export class UsersController {
         companyActivity: true,
         agencyLogoUrl: true,
         phone: true,
+        landline: true,
+        civility: true,
+        dateOfBirth: true,
         address: true,
+        townId: true,
         position: true,
         rcDocumentUrl: true,
         agreementDocumentUrl: true,

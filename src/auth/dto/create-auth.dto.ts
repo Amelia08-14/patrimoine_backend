@@ -42,6 +42,10 @@ export class CreateAuthDto {
   commercialRegister?: string;
 
   @IsOptional()
+  @IsString()
+  position?: 'GERANT' | 'SERVICE_COMMERCIAL';
+
+  @IsOptional()
   @IsNumber()
   townId?: number;
 

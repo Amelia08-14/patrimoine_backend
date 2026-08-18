@@ -16,7 +16,7 @@ export class AuthService {
   async register(createAuthDto: CreateAuthDto) {
     const { 
       email, password, firstName, lastName, phone,
-      userType, companyName, activityType, commercialRegister, townId, townCode
+      userType, companyName, activityType, commercialRegister, position, townId, townCode
     } = createAuthDto;
 
     // Vérifier si l'utilisateur existe déjà
@@ -34,7 +34,7 @@ export class AuthService {
 
     const resolvedUserType = (userType || UserType.PARTICULIER) as any;
     if (resolvedUserType === UserType.SOCIETE) {
-      if (!companyName || !activityType || !commercialRegister) {
+      if (!companyName || !activityType || !position || !['GERANT', 'SERVICE_COMMERCIAL'].includes(position)) {
         throw new BadRequestException("Champs société incomplets");
       }
     }
@@ -53,6 +53,7 @@ export class AuthService {
         companyName,
         companyActivity: activityType as any, // Prisma Enum
         commercialRegister,
+        position,
         townId: resolvedTownId,
         activated: false, // Compte désactivé par défaut (email)
         adminVerified: false, // Non validé par l'admin par défaut
@@ -155,8 +156,17 @@ export class AuthService {
     // Vérifier si le profil est complet (basé sur le type)
     let isProfileComplete = true;
     if (user.userType === 'PARTICULIER') {
-        // Pour un particulier, on vérifie si l'adresse et la date de naissance sont remplis
-        if (!user.address || !user.dateOfBirth) isProfileComplete = false;
+        // Toutes les informations obligatoires demandées au particulier doivent
+        // être présentes avant de considérer son profil comme complet.
+        if (
+          !user.civility ||
+          !user.firstName ||
+          !user.lastName ||
+          !user.dateOfBirth ||
+          !user.phone ||
+          !user.address ||
+          !user.townId
+        ) isProfileComplete = false;
     } else if (user.userType === 'SOCIETE') {
         // Pour une société, on vérifie les documents
         // if (!user.rcDocumentUrl || !user.agreementDocumentUrl) isProfileComplete = false;

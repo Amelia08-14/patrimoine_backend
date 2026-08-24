@@ -364,6 +364,14 @@ enum UserType {
   ADMIN
 }
 
+// Sous-catégorie des partenaires affichés sur le site (page "Partenaires")
+enum PartnerCategory {
+  IMMOBILIER
+  HOTELLERIE
+  EVENEMENTIEL
+  ENTREPOSAGE
+}
+
 enum CompanyActivity {
   AGENCE_IMMOBILIERE
   PROMOTEUR_IMMOBILIER
@@ -490,14 +498,15 @@ model FaqItem {
 }
 
 model Partner {
-  id         Int      @id @default(autoincrement())
+  id         Int              @id @default(autoincrement())
   name       String
   logoUrl    String?
   websiteUrl String?
-  order      Int      @default(0)
-  published  Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  category   PartnerCategory?
+  order      Int              @default(0)
+  published  Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 
   @@map("partner")
 }

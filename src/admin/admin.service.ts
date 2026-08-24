@@ -87,6 +87,37 @@ export class AdminService {
     return user;
   }
 
+  // --- Tableau de bord : indicateurs clés (annonces, inscriptions, répartition pro) ---
+
+  async getDashboardStats() {
+    const [pendingAnnounces, onlineAnnounces, totalParticuliers, professionnels] = await Promise.all([
+      this.prisma.announce.count({ where: { status: AnnounceStatus.WAITING_VALIDATION } }),
+      this.prisma.announce.count({ where: { status: AnnounceStatus.VALIDATED } }),
+      this.prisma.user.count({ where: { userType: UserType.PARTICULIER } }),
+      this.prisma.user.findMany({ where: { userType: UserType.SOCIETE }, select: { companyActivity: true } }),
+    ]);
+
+    const professionnelsByActivity: Record<string, number> = {
+      IMMOBILIER: 0,
+      HOTELLERIE: 0,
+      EVENEMENTIEL: 0,
+      ENTREPOSAGE: 0,
+      NON_CLASSE: 0,
+    };
+    for (const { companyActivity } of professionnels) {
+      const pole = poleForActivity(companyActivity);
+      professionnelsByActivity[pole && professionnelsByActivity[pole] !== undefined ? pole : 'NON_CLASSE']++;
+    }
+
+    return {
+      pendingAnnounces,
+      totalOnlineAnnounces: onlineAnnounces,
+      totalParticuliers,
+      totalProfessionnels: professionnels.length,
+      professionnelsByActivity,
+    };
+  }
+
   // --- Résolution géographique (townId -> wilaya/commune) ---
 
   private async resolveTownIds(wilaya?: string, commune?: string): Promise<number[] | undefined> {
@@ -281,7 +312,7 @@ export class AdminService {
     const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
     const search = filters?.search?.trim();
 
-    return this.prisma.announce.findMany({
+    const announces = await this.prisma.announce.findMany({
       where: {
         ...(townIds ? { property: { address: { townId: { in: townIds } } } } : {}),
         ...(search
@@ -296,7 +327,7 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       include: {
         user: {
-          select: { id: true, email: true, firstName: true, lastName: true, companyName: true },
+          select: { id: true, email: true, firstName: true, lastName: true, companyName: true, userType: true, companyActivity: true },
         },
         property: {
           include: {
@@ -325,6 +356,14 @@ export class AdminService {
         },
       },
     });
+
+    // Résolution du pôle d'activité de l'annonceur, pour le filtre "Type d'activité" (dashboard admin)
+    return announces.map((a) => ({
+      ...a,
+      user: a.user
+        ? { ...a.user, pole: a.user.userType === UserType.PARTICULIER ? null : poleForActivity(a.user.companyActivity) }
+        : a.user,
+    }));
   }
 
   async getPendingAnnounces() {
@@ -408,6 +447,87 @@ export class AdminService {
         property: { select: { propertyType: true } },
       },
     });
+  }
+
+  // --- Achats (Points & Boutique) : vue unifiée et filtrable pour le dashboard admin ---
+
+  async getAllPurchases(filters?: {
+    wilaya?: string;
+    commune?: string;
+    search?: string;
+    accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE';
+    source?: 'ALL' | 'POINTS' | 'BOUTIQUE';
+    status?: string;
+  }) {
+    const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
+    const search = filters?.search?.trim();
+    const accountType = filters?.accountType || 'ALL';
+    const source = filters?.source || 'ALL';
+    const status = filters?.status && filters.status !== 'ALL' ? filters.status : undefined;
+
+    const userWhere = {
+      ...(townIds ? { townId: { in: townIds } } : {}),
+      ...(accountType === 'PARTICULIER' ? { userType: UserType.PARTICULIER } : {}),
+      ...(accountType === 'SOCIETE' ? { userType: UserType.SOCIETE } : {}),
+      ...(search
+        ? {
+            OR: [
+              { firstName: { contains: search } },
+              { lastName: { contains: search } },
+              { companyName: { contains: search } },
+            ],
+          }
+        : {}),
+    };
+
+    const userSelect = {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      companyName: true,
+      userType: true,
+      townId: true,
+    } as const;
+
+    const [pointPurchases, boutiqueSubs] = await Promise.all([
+      source === 'BOUTIQUE'
+        ? Promise.resolve([])
+        : this.prisma.pointPurchase.findMany({
+            where: { ...(status ? { status } : {}), user: userWhere },
+            include: { user: { select: userSelect } },
+            orderBy: { createdAt: 'desc' },
+          }),
+      source === 'POINTS'
+        ? Promise.resolve([])
+        : this.prisma.boutiqueSubscription.findMany({
+            where: { ...(status ? { status } : {}), user: userWhere },
+            include: { user: { select: userSelect } },
+            orderBy: { createdAt: 'desc' },
+          }),
+    ]);
+
+    const merged = [
+      ...pointPurchases.map((p) => ({ ...p, source: 'POINTS' as const, expiresAt: null as Date | null })),
+      ...boutiqueSubs.map((s) => ({ ...s, source: 'BOUTIQUE' as const, points: s.pointsIncluded })),
+    ];
+
+    // Résolution des localisations (townId -> wilaya/commune) en un seul aller-retour
+    const townIdsToResolve = [...new Set(merged.map((m) => m.user?.townId).filter((id): id is number => !!id))];
+    const towns = townIdsToResolve.length
+      ? await this.prisma.town.findMany({ where: { id: { in: townIdsToResolve } }, include: { city: true } })
+      : [];
+    const townMap = new Map(towns.map((t) => [t.id, t]));
+
+    return merged
+      .map((m) => {
+        const town = m.user?.townId ? townMap.get(m.user.townId) : undefined;
+        return {
+          ...m,
+          user: m.user ? { ...m.user, location: town ? `${town.nameFr} (${town.city.nameFr})` : null } : m.user,
+        };
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   // --- Module Contact & Support : requêtes soumises via "Nous Contacter" ---

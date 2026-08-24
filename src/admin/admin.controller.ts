@@ -8,6 +8,12 @@ import { AdminService } from './admin.service';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get('dashboard-stats')
+  async getDashboardStats(@Req() req: any) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getDashboardStats();
+  }
+
   @Get('users')
   async getAllUsers(
     @Req() req: any,
@@ -100,6 +106,20 @@ export class AdminController {
   async getFeaturedKpis(@Req() req: any) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.adminService.getFeaturedKpis();
+  }
+
+  @Get('purchases')
+  async getAllPurchases(
+    @Req() req: any,
+    @Query('wilaya') wilaya?: string,
+    @Query('commune') commune?: string,
+    @Query('search') search?: string,
+    @Query('accountType') accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE',
+    @Query('source') source?: 'ALL' | 'POINTS' | 'BOUTIQUE',
+    @Query('status') status?: string,
+  ) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getAllPurchases({ wilaya, commune, search, accountType, source, status });
   }
 
   @Get('contacts')

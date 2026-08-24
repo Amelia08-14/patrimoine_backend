@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PartnerCategory } from '@prisma/client';
 
 @Injectable()
 export class ContentService {
@@ -71,18 +72,21 @@ export class ContentService {
 
   // --- Partenaires ---
 
-  async getPartners(publishedOnly: boolean) {
+  async getPartners(publishedOnly: boolean, category?: PartnerCategory) {
     return this.prisma.partner.findMany({
-      where: publishedOnly ? { published: true } : {},
+      where: {
+        ...(publishedOnly ? { published: true } : {}),
+        ...(category ? { category } : {}),
+      },
       orderBy: { order: 'asc' },
     });
   }
 
-  async createPartner(data: { name: string; logoUrl?: string; websiteUrl?: string; order: number }) {
+  async createPartner(data: { name: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory; order: number }) {
     return this.prisma.partner.create({ data });
   }
 
-  async updatePartner(id: number, data: { name?: string; logoUrl?: string; websiteUrl?: string; order?: number; published?: boolean }) {
+  async updatePartner(id: number, data: { name?: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory | null; order?: number; published?: boolean }) {
     const item = await this.prisma.partner.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Partenaire introuvable');
     return this.prisma.partner.update({ where: { id }, data });

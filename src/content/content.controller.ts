@@ -5,7 +5,7 @@ import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminService } from '../admin/admin.service';
 import { ContentService } from './content.service';
-import { PartnerCategory } from '@prisma/client';
+import { PartnerCategory, CompanyActivity } from '@prisma/client';
 
 @Controller()
 export class ContentController {
@@ -32,8 +32,8 @@ export class ContentController {
   }
 
   @Get('content/partners')
-  getPartners(@Query('category') category?: PartnerCategory) {
-    return this.contentService.getPartners(true, category);
+  getPartners(@Query('category') category?: PartnerCategory, @Query('subCategory') subCategory?: CompanyActivity) {
+    return this.contentService.getPartners(true, category, subCategory);
   }
 
   // ── ADMIN ──
@@ -121,7 +121,7 @@ export class ContentController {
   }))
   async createPartner(
     @Req() req: any,
-    @Body() body: { name: string; websiteUrl?: string; category?: PartnerCategory; order?: string },
+    @Body() body: { name: string; websiteUrl?: string; category?: PartnerCategory; subCategory?: CompanyActivity; order?: string },
     @UploadedFile() logo?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
@@ -129,6 +129,7 @@ export class ContentController {
       name: body.name,
       websiteUrl: body.websiteUrl,
       category: body.category || undefined,
+      subCategory: body.subCategory || undefined,
       order: body.order ? Number(body.order) : 0,
       logoUrl: logo ? `/uploads/partners/${logo.filename}` : undefined,
     });
@@ -148,7 +149,7 @@ export class ContentController {
   async updatePartner(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: { name?: string; websiteUrl?: string; category?: PartnerCategory | ''; order?: string; published?: string },
+    @Body() body: { name?: string; websiteUrl?: string; category?: PartnerCategory | ''; subCategory?: CompanyActivity | ''; order?: string; published?: string },
     @UploadedFile() logo?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
@@ -156,6 +157,7 @@ export class ContentController {
       name: body.name,
       websiteUrl: body.websiteUrl,
       category: body.category !== undefined ? (body.category || null) : undefined,
+      subCategory: body.subCategory !== undefined ? (body.subCategory || null) : undefined,
       order: body.order !== undefined ? Number(body.order) : undefined,
       published: body.published !== undefined ? body.published === 'true' : undefined,
       logoUrl: logo ? `/uploads/partners/${logo.filename}` : undefined,

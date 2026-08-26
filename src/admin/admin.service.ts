@@ -136,28 +136,83 @@ export class AdminService {
 
   // --- Users Management ---
 
-  async getAllUsers(filters?: { wilaya?: string; commune?: string; search?: string }) {
+  // Vue unifiée : annuaire complet (conformité/documents) + segmentation par pôle d'activité
+  async getAllUsers(filters?: {
+    wilaya?: string;
+    commune?: string;
+    search?: string;
+    status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED';
+    accountType?: 'ALL' | 'PRO' | 'PARTICULIER';
+    pole?: 'ALL' | keyof typeof ACTIVITY_POLES;
+  }) {
     const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
     const search = filters?.search?.trim();
+    const status = filters?.status || 'ALL';
+    const accountType = filters?.accountType || 'ALL';
+    const pole = filters?.pole || 'ALL';
 
-    return this.prisma.user.findMany({
-      where: {
-        NOT: { userType: UserType.ADMIN },
-        ...(townIds ? { townId: { in: townIds } } : {}),
-        ...(search
-          ? {
-              OR: [
-                { firstName: { contains: search } },
-                { lastName: { contains: search } },
-                { email: { contains: search } },
-                { companyName: { contains: search } },
-                { phone: { contains: search } },
-              ],
-            }
-          : {}),
-      },
+    const conditions: object[] = [{ NOT: { userType: UserType.ADMIN } }];
+    if (townIds) conditions.push({ townId: { in: townIds } });
+    if (accountType === 'PRO') conditions.push({ userType: UserType.SOCIETE });
+    if (accountType === 'PARTICULIER') conditions.push({ userType: UserType.PARTICULIER });
+    if (status === 'ACTIVE') conditions.push({ accountStatus: AccountStatus.ACTIVE });
+    if (status === 'PENDING') conditions.push({ adminVerified: false });
+    if (status === 'SUSPENDED') conditions.push({ accountStatus: { in: [AccountStatus.SUSPENDED, AccountStatus.BLOCKED] } });
+    if (pole !== 'ALL') {
+      // Les particuliers n'ont pas de companyActivity mais sont rattachés par défaut au pôle
+      // Immobilier (cf. resolvedPole ci-dessous) : le filtre doit donc les inclure sur ce pôle.
+      conditions.push(
+        pole === 'IMMOBILIER'
+          ? { OR: [{ companyActivity: { in: ACTIVITY_POLES[pole] } }, { userType: UserType.PARTICULIER }] }
+          : { companyActivity: { in: ACTIVITY_POLES[pole] } },
+      );
+    }
+    if (search) {
+      conditions.push({
+        OR: [
+          { firstName: { contains: search } },
+          { lastName: { contains: search } },
+          { email: { contains: search } },
+          { companyName: { contains: search } },
+          { phone: { contains: search } },
+          { commercialRegister: { contains: search } },
+          { nif: { contains: search } },
+        ],
+      });
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { AND: conditions },
       orderBy: { createdAt: 'desc' },
-      select: USER_LIST_SELECT,
+      select: {
+        ...USER_LIST_SELECT,
+        _count: { select: { announces: { where: { status: AnnounceStatus.VALIDATED } } } },
+      },
+    });
+
+    // Résolution des localisations (townId -> wilaya/commune) en un seul aller-retour
+    const townIdsToResolve = [...new Set(users.map((u) => u.townId).filter((id): id is number => !!id))];
+    const towns = townIdsToResolve.length
+      ? await this.prisma.town.findMany({
+          where: { id: { in: townIdsToResolve } },
+          include: { city: true },
+        })
+      : [];
+    const townMap = new Map(towns.map((t) => [t.id, t]));
+
+    return users.map((u) => {
+      // Les particuliers ne portent pas de companyActivity : faute d'un marqueur de pôle
+      // dédié sur les comptes B2C, ils sont rattachés par défaut au pôle Immobilier
+      // (seul pôle actuellement modélisé par les annonces/Property). À affiner si un
+      // champ de pôle est ajouté pour les comptes particuliers.
+      const resolvedPole = u.userType === UserType.PARTICULIER ? 'IMMOBILIER' : poleForActivity(u.companyActivity);
+      const town = u.townId ? townMap.get(u.townId) : undefined;
+      return {
+        ...u,
+        pole: resolvedPole,
+        location: town ? `${town.nameFr} (${town.city.nameFr})` : null,
+        announcesCount: u._count.announces,
+      };
     });
   }
 
@@ -235,75 +290,6 @@ export class AdminService {
       this.logger.log(`${result.count} compte(s) professionnel(s) suspendu(s) pour agrément expiré`);
     }
     return result;
-  }
-
-  // --- Partenaires : dashboard segmenté par pôle d'activité ---
-
-  async getPartners(filters?: {
-    search?: string;
-    status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED';
-    accountType?: 'ALL' | 'PRO' | 'PARTICULIER';
-    pole?: 'ALL' | keyof typeof ACTIVITY_POLES;
-  }) {
-    const search = filters?.search?.trim();
-    const status = filters?.status || 'ALL';
-    const accountType = filters?.accountType || 'ALL';
-    const pole = filters?.pole || 'ALL';
-
-    const users = await this.prisma.user.findMany({
-      where: {
-        NOT: { userType: UserType.ADMIN },
-        ...(accountType === 'PRO' ? { userType: UserType.SOCIETE } : {}),
-        ...(accountType === 'PARTICULIER' ? { userType: UserType.PARTICULIER } : {}),
-        ...(status === 'ACTIVE' ? { accountStatus: AccountStatus.ACTIVE } : {}),
-        ...(status === 'PENDING' ? { adminVerified: false } : {}),
-        ...(status === 'SUSPENDED' ? { accountStatus: { in: [AccountStatus.SUSPENDED, AccountStatus.BLOCKED] } } : {}),
-        ...(pole !== 'ALL' ? { companyActivity: { in: ACTIVITY_POLES[pole] } } : {}),
-        ...(search
-          ? {
-              OR: [
-                { firstName: { contains: search } },
-                { lastName: { contains: search } },
-                { email: { contains: search } },
-                { companyName: { contains: search } },
-                { phone: { contains: search } },
-                { commercialRegister: { contains: search } },
-                { nif: { contains: search } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        ...USER_LIST_SELECT,
-        _count: { select: { announces: { where: { status: AnnounceStatus.VALIDATED } } } },
-      },
-    });
-
-    // Résolution des localisations (townId -> wilaya/commune) en un seul aller-retour
-    const townIds = [...new Set(users.map((u) => u.townId).filter((id): id is number => !!id))];
-    const towns = townIds.length
-      ? await this.prisma.town.findMany({
-          where: { id: { in: townIds } },
-          include: { city: true },
-        })
-      : [];
-    const townMap = new Map(towns.map((t) => [t.id, t]));
-
-    return users.map((u) => {
-      // Les particuliers ne portent pas de companyActivity : faute d'un marqueur de pôle
-      // dédié sur les comptes B2C, ils sont rattachés par défaut au pôle Immobilier
-      // (seul pôle actuellement modélisé par les annonces/Property). À affiner si un
-      // champ de pôle est ajouté pour les comptes particuliers.
-      const resolvedPole = u.userType === UserType.PARTICULIER ? 'IMMOBILIER' : poleForActivity(u.companyActivity);
-      const town = u.townId ? townMap.get(u.townId) : undefined;
-      return {
-        ...u,
-        pole: resolvedPole,
-        location: town ? `${town.nameFr} (${town.city.nameFr})` : null,
-        announcesCount: u._count.announces,
-      };
-    });
   }
 
   // --- Announces Management ---

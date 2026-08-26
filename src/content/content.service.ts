@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PartnerCategory } from '@prisma/client';
+import { PartnerCategory, CompanyActivity } from '@prisma/client';
 
 @Injectable()
 export class ContentService {
@@ -72,21 +72,22 @@ export class ContentService {
 
   // --- Partenaires ---
 
-  async getPartners(publishedOnly: boolean, category?: PartnerCategory) {
+  async getPartners(publishedOnly: boolean, category?: PartnerCategory, subCategory?: CompanyActivity) {
     return this.prisma.partner.findMany({
       where: {
         ...(publishedOnly ? { published: true } : {}),
         ...(category ? { category } : {}),
+        ...(subCategory ? { subCategory } : {}),
       },
       orderBy: { order: 'asc' },
     });
   }
 
-  async createPartner(data: { name: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory; order: number }) {
+  async createPartner(data: { name: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory; subCategory?: CompanyActivity; order: number }) {
     return this.prisma.partner.create({ data });
   }
 
-  async updatePartner(id: number, data: { name?: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory | null; order?: number; published?: boolean }) {
+  async updatePartner(id: number, data: { name?: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory | null; subCategory?: CompanyActivity | null; order?: number; published?: boolean }) {
     const item = await this.prisma.partner.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Partenaire introuvable');
     return this.prisma.partner.update({ where: { id }, data });

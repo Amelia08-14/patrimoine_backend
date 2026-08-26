@@ -20,9 +20,12 @@ export class AdminController {
     @Query('wilaya') wilaya?: string,
     @Query('commune') commune?: string,
     @Query('search') search?: string,
+    @Query('status') status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED',
+    @Query('accountType') accountType?: 'ALL' | 'PRO' | 'PARTICULIER',
+    @Query('pole') pole?: 'ALL' | 'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE',
   ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getAllUsers({ wilaya, commune, search });
+    return this.adminService.getAllUsers({ wilaya, commune, search, status, accountType, pole });
   }
 
   @Get('users/pending')
@@ -53,18 +56,6 @@ export class AdminController {
   async resetUserPassword(@Req() req: any, @Param('id') id: string, @Body() body: { newPassword: string }) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.adminService.resetUserPassword(Number(id), body.newPassword);
-  }
-
-  @Get('partners')
-  async getPartners(
-    @Req() req: any,
-    @Query('search') search?: string,
-    @Query('status') status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED',
-    @Query('accountType') accountType?: 'ALL' | 'PRO' | 'PARTICULIER',
-    @Query('pole') pole?: 'ALL' | 'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE',
-  ) {
-    await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getPartners({ search, status, accountType, pole });
   }
 
   @Get('announces')

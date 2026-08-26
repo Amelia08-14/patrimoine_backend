@@ -498,15 +498,16 @@ model FaqItem {
 }
 
 model Partner {
-  id         Int              @id @default(autoincrement())
-  name       String
-  logoUrl    String?
-  websiteUrl String?
-  category   PartnerCategory?
-  order      Int              @default(0)
-  published  Boolean          @default(true)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id          Int              @id @default(autoincrement())
+  name        String
+  logoUrl     String?
+  websiteUrl  String?
+  category    PartnerCategory?
+  subCategory CompanyActivity? // sous-catégorie : même nomenclature que l'inscription pro / dépôt d'annonce
+  order       Int              @default(0)
+  published   Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@map("partner")
 }

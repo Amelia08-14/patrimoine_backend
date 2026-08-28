@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, Req, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -34,6 +34,11 @@ export class ContentController {
   @Get('content/useful-links')
   getUsefulLinks() {
     return this.contentService.getUsefulLinks(true);
+  }
+
+  @Get('content/hero-slides')
+  getHeroSlides() {
+    return this.contentService.getHeroSlides(true);
   }
 
   @Get('content/partners')
@@ -215,6 +220,75 @@ export class ContentController {
   async deletePartner(@Req() req: any, @Param('id') id: string) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.deletePartner(Number(id));
+  }
+
+  @Get('admin/content/hero-slides')
+  @UseGuards(JwtAuthGuard)
+  async adminGetHeroSlides(@Req() req: any) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.getHeroSlides(false);
+  }
+
+  @Post('admin/content/hero-slides')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: './uploads/slides',
+      filename: (req, file, cb) => {
+        const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+        return cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  async createHeroSlide(
+    @Req() req: any,
+    @Body() body: { categoryId?: string; title?: string; subtitle?: string; order?: string },
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
+    await this.adminService.checkAdmin(req.user.userId);
+    if (!image) throw new BadRequestException('Image requise');
+    return this.contentService.createHeroSlide({
+      categoryId: body.categoryId || null,
+      imageUrl: `/uploads/slides/${image.filename}`,
+      title: body.title || null,
+      subtitle: body.subtitle || null,
+      order: body.order ? Number(body.order) : 0,
+    });
+  }
+
+  @Put('admin/content/hero-slides/:id')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: './uploads/slides',
+      filename: (req, file, cb) => {
+        const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+        return cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  async updateHeroSlide(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { categoryId?: string; title?: string; subtitle?: string; order?: string; published?: string },
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.updateHeroSlide(Number(id), {
+      ...(body.categoryId !== undefined ? { categoryId: body.categoryId || null } : {}),
+      ...(body.title !== undefined ? { title: body.title || null } : {}),
+      ...(body.subtitle !== undefined ? { subtitle: body.subtitle || null } : {}),
+      ...(body.order !== undefined ? { order: Number(body.order) } : {}),
+      ...(body.published !== undefined ? { published: body.published === 'true' } : {}),
+      ...(image ? { imageUrl: `/uploads/slides/${image.filename}` } : {}),
+    });
+  }
+
+  @Delete('admin/content/hero-slides/:id')
+  @UseGuards(JwtAuthGuard)
+  async deleteHeroSlide(@Req() req: any, @Param('id') id: string) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.deleteHeroSlide(Number(id));
   }
 
   @Get('admin/content/useful-links')

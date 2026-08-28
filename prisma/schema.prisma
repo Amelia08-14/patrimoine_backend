@@ -537,6 +537,23 @@ model FaqItem {
   @@map("faq_item")
 }
 
+// Diapositives du hero de la page d'accueil, gérées depuis l'administration. `categoryId`
+// référence un id de REAL_ESTATE_CATEGORIES côté frontend (ex. "RESIDENTIEL") — pas de FK stricte,
+// c'est un simple tag utilisé pour réutiliser le libellé/icône déjà définis pour ce domaine.
+model HeroSlide {
+  id         Int      @id @default(autoincrement())
+  categoryId String?
+  imageUrl   String
+  title      String?
+  subtitle   String?
+  order      Int      @default(0)
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("hero_slide")
+}
+
 model Partner {
   id          Int              @id @default(autoincrement())
   name        String

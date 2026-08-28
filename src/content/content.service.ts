@@ -97,6 +97,29 @@ export class ContentService {
     return this.prisma.partner.delete({ where: { id } });
   }
 
+  // --- Slides du hero de la page d'accueil ---
+
+  async getHeroSlides(publishedOnly: boolean) {
+    return this.prisma.heroSlide.findMany({
+      where: publishedOnly ? { published: true } : {},
+      orderBy: { order: 'asc' },
+    });
+  }
+
+  async createHeroSlide(data: { categoryId?: string | null; imageUrl: string; title?: string | null; subtitle?: string | null; order: number }) {
+    return this.prisma.heroSlide.create({ data });
+  }
+
+  async updateHeroSlide(id: number, data: { categoryId?: string | null; imageUrl?: string; title?: string | null; subtitle?: string | null; order?: number; published?: boolean }) {
+    const item = await this.prisma.heroSlide.findUnique({ where: { id } });
+    if (!item) throw new NotFoundException('Slide introuvable');
+    return this.prisma.heroSlide.update({ where: { id }, data });
+  }
+
+  async deleteHeroSlide(id: number) {
+    return this.prisma.heroSlide.delete({ where: { id } });
+  }
+
   // --- Liens Utiles (affichés automatiquement dans le footer du site public) ---
 
   async getUsefulLinks(publishedOnly: boolean) {

@@ -1,11 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
-export const BOUTIQUE_PACKS = {
-  STANDARD:   { price: 5000,  points: 50  },
-  AVANCEE:    { price: 10000, points: 100 },
-  ENTREPRISE: { price: 15000, points: 200 },
-};
+import { OfferPackKind } from '@prisma/client';
 
 @Injectable()
 export class BoutiqueSubService {
@@ -13,7 +8,7 @@ export class BoutiqueSubService {
 
   // Utilisateur achète un pack boutique
   async purchasePack(userId: number, pack: string) {
-    const def = BOUTIQUE_PACKS[pack as keyof typeof BOUTIQUE_PACKS];
+    const def = await this.prisma.offerPack.findUnique({ where: { kind_key: { kind: OfferPackKind.BOUTIQUE, key: pack } } });
     if (!def) throw new BadRequestException('Pack boutique invalide');
 
     // Bloque si demande PENDING en cours ou abonnement actif non expiré

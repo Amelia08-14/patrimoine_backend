@@ -2,7 +2,7 @@ import { Injectable, Logger, UnauthorizedException, BadRequestException } from '
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { AnnounceStatus, UserType, AccountStatus, CompanyActivity } from '@prisma/client';
+import { AnnounceStatus, UserType, AccountStatus, CompanyActivity, TransactionType } from '@prisma/client';
 
 const USER_LIST_SELECT = {
   id: true,
@@ -21,6 +21,7 @@ const USER_LIST_SELECT = {
   agreementExpiryDate: true,
   imageUrl: true,
   phone: true,
+  address: true,
   townId: true,
   createdAt: true,
   lastLoginAt: true,
@@ -89,12 +90,17 @@ export class AdminService {
 
   // --- Tableau de bord : indicateurs clés (annonces, inscriptions, répartition pro) ---
 
-  async getDashboardStats() {
+  async getDashboardStats(filters?: { from?: string; to?: string }) {
+    // Filtre de période (sur createdAt) : "from"/"to" au format YYYY-MM-DD, bornes incluses.
+    const from = filters?.from ? new Date(filters.from) : undefined;
+    const to = filters?.to ? new Date(`${filters.to}T23:59:59.999`) : undefined;
+    const createdAt = from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } : undefined;
+
     const [pendingAnnounces, onlineAnnounces, totalParticuliers, professionnels] = await Promise.all([
-      this.prisma.announce.count({ where: { status: AnnounceStatus.WAITING_VALIDATION } }),
-      this.prisma.announce.count({ where: { status: AnnounceStatus.VALIDATED } }),
-      this.prisma.user.count({ where: { userType: UserType.PARTICULIER } }),
-      this.prisma.user.findMany({ where: { userType: UserType.SOCIETE }, select: { companyActivity: true } }),
+      this.prisma.announce.count({ where: { status: AnnounceStatus.WAITING_VALIDATION, ...(createdAt ? { createdAt } : {}) } }),
+      this.prisma.announce.count({ where: { status: AnnounceStatus.VALIDATED, ...(createdAt ? { createdAt } : {}) } }),
+      this.prisma.user.count({ where: { userType: UserType.PARTICULIER, ...(createdAt ? { createdAt } : {}) } }),
+      this.prisma.user.findMany({ where: { userType: UserType.SOCIETE, ...(createdAt ? { createdAt } : {}) }, select: { companyActivity: true } }),
     ]);
 
     const professionnelsByActivity: Record<string, number> = {
@@ -104,9 +110,16 @@ export class AdminService {
       ENTREPOSAGE: 0,
       NON_CLASSE: 0,
     };
+    // Détail par sous-catégorie (CompanyActivity) — toutes les valeurs de l'enum,
+    // y compris à 0, pour un tableau de bord complet quelle que soit l'activité réelle.
+    const professionnelsBySubCategory: Record<string, number> = {};
+    for (const activity of Object.values(CompanyActivity)) {
+      professionnelsBySubCategory[activity] = 0;
+    }
     for (const { companyActivity } of professionnels) {
       const pole = poleForActivity(companyActivity);
       professionnelsByActivity[pole && professionnelsByActivity[pole] !== undefined ? pole : 'NON_CLASSE']++;
+      if (companyActivity) professionnelsBySubCategory[companyActivity]++;
     }
 
     return {
@@ -115,6 +128,7 @@ export class AdminService {
       totalParticuliers,
       totalProfessionnels: professionnels.length,
       professionnelsByActivity,
+      professionnelsBySubCategory,
     };
   }
 
@@ -144,12 +158,14 @@ export class AdminService {
     status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED';
     accountType?: 'ALL' | 'PRO' | 'PARTICULIER';
     pole?: 'ALL' | keyof typeof ACTIVITY_POLES;
+    subCategory?: CompanyActivity | 'ALL';
   }) {
     const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
     const search = filters?.search?.trim();
     const status = filters?.status || 'ALL';
     const accountType = filters?.accountType || 'ALL';
     const pole = filters?.pole || 'ALL';
+    const subCategory = filters?.subCategory && filters.subCategory !== 'ALL' ? filters.subCategory : undefined;
 
     const conditions: object[] = [{ NOT: { userType: UserType.ADMIN } }];
     if (townIds) conditions.push({ townId: { in: townIds } });
@@ -158,7 +174,11 @@ export class AdminService {
     if (status === 'ACTIVE') conditions.push({ accountStatus: AccountStatus.ACTIVE });
     if (status === 'PENDING') conditions.push({ adminVerified: false });
     if (status === 'SUSPENDED') conditions.push({ accountStatus: { in: [AccountStatus.SUSPENDED, AccountStatus.BLOCKED] } });
-    if (pole !== 'ALL') {
+    if (subCategory) {
+      // Sous-catégorie précise (affine le pôle) : ne s'applique qu'aux comptes pro, qui seuls
+      // portent un companyActivity.
+      conditions.push({ companyActivity: subCategory });
+    } else if (pole !== 'ALL') {
       // Les particuliers n'ont pas de companyActivity mais sont rattachés par défaut au pôle
       // Immobilier (cf. resolvedPole ci-dessous) : le filtre doit donc les inclure sur ce pôle.
       conditions.push(
@@ -207,10 +227,15 @@ export class AdminService {
       // champ de pôle est ajouté pour les comptes particuliers.
       const resolvedPole = u.userType === UserType.PARTICULIER ? 'IMMOBILIER' : poleForActivity(u.companyActivity);
       const town = u.townId ? townMap.get(u.townId) : undefined;
+      const structuredLocation = town ? `${town.nameFr} (${town.city.nameFr})` : null;
+      // Repli sur l'adresse texte libre quand le compte n'a pas de wilaya/commune structurée
+      // (champ non demandé à l'inscription) : mieux vaut afficher une info approximative
+      // que rien du tout dans la colonne "Localisation".
       return {
         ...u,
         pole: resolvedPole,
-        location: town ? `${town.nameFr} (${town.city.nameFr})` : null,
+        location: structuredLocation || u.address || null,
+        locationIsApproximate: !structuredLocation && !!u.address,
         announcesCount: u._count.announces,
       };
     });
@@ -514,6 +539,157 @@ export class AdminService {
         };
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  // --- KPI Points & Boutique : vue analytique (achats + dépenses) pour cibler les actions commerciales.
+  // Deux volets distincts, car ils ne portent pas sur les mêmes données :
+  //  - Achats  = PointPurchase/BoutiqueSubscription (VALIDATED) : qui achète des points/packs, où, combien.
+  //  - Dépenses = PointUsage (points dépensés pour booster/mettre en avant une annonce) : reliée à
+  //    l'annonce boostée, donc à son type (Location vs Vente) — ce qui permet de savoir si les points
+  //    achetés servent surtout à pousser des locations ou des ventes, par wilaya/commune.
+  async getPointsKpi(filters?: {
+    wilaya?: string;
+    commune?: string;
+    accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE';
+    source?: 'ALL' | 'POINTS' | 'BOUTIQUE'; // ne s'applique qu'aux achats
+    pack?: string; // clé OfferPack.key ; ne s'applique qu'aux achats
+    transactionType?: 'ALL' | 'LOCATION' | 'VENTE'; // ne s'applique qu'aux dépenses
+  }) {
+    const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
+    const accountType = filters?.accountType || 'ALL';
+    const source = filters?.source || 'ALL';
+    const pack = filters?.pack && filters.pack !== 'ALL' ? filters.pack : undefined;
+    const transactionType = filters?.transactionType || 'ALL';
+
+    const userWhere = {
+      ...(townIds ? { townId: { in: townIds } } : {}),
+      ...(accountType === 'PARTICULIER' ? { userType: UserType.PARTICULIER } : {}),
+      ...(accountType === 'SOCIETE' ? { userType: UserType.SOCIETE } : {}),
+    };
+    const userSelect = { id: true, userType: true, townId: true } as const;
+
+    // --- Achats : uniquement les achats validés (chiffre d'affaires réel, pas les demandes en attente/rejetées) ---
+    const [pointPurchases, boutiqueSubs] = await Promise.all([
+      source === 'BOUTIQUE'
+        ? Promise.resolve([])
+        : this.prisma.pointPurchase.findMany({
+            where: { status: 'VALIDATED', user: userWhere, ...(pack ? { pack } : {}) },
+            select: { points: true, price: true, user: { select: userSelect } },
+          }),
+      source === 'POINTS'
+        ? Promise.resolve([])
+        : this.prisma.boutiqueSubscription.findMany({
+            where: { status: 'VALIDATED', user: userWhere, ...(pack ? { pack } : {}) },
+            select: { pointsIncluded: true, price: true, user: { select: userSelect } },
+          }),
+    ]);
+
+    const purchases = [
+      ...pointPurchases.map((p) => ({ points: p.points, price: p.price, townId: p.user?.townId ?? null })),
+      ...boutiqueSubs.map((s) => ({ points: s.pointsIncluded, price: s.price, townId: s.user?.townId ?? null })),
+    ];
+
+    // --- Dépenses : PointUsage relié à l'annonce boostée (pour son type Location/Vente) ---
+    const announceTypeWhere =
+      transactionType === 'LOCATION'
+        ? { type: { in: [TransactionType.RENTAL, TransactionType.HOLIDAY_RENTAL] } }
+        : transactionType === 'VENTE'
+        ? { type: TransactionType.SALE }
+        : undefined;
+
+    const usages = await this.prisma.pointUsage.findMany({
+      where: {
+        user: userWhere,
+        ...(announceTypeWhere ? { announce: announceTypeWhere } : {}),
+      },
+      select: {
+        pointsUsed: true,
+        user: { select: userSelect },
+        announce: { select: { type: true } },
+      },
+    });
+
+    // --- Résolution géographique groupée (achats + dépenses en un seul aller-retour) ---
+    const allTownIds = [
+      ...new Set(
+        [...purchases.map((p) => p.townId), ...usages.map((u) => u.user?.townId ?? null)].filter(
+          (id): id is number => !!id,
+        ),
+      ),
+    ];
+    const towns = allTownIds.length
+      ? await this.prisma.town.findMany({ where: { id: { in: allTownIds } }, include: { city: true } })
+      : [];
+    const townMap = new Map(towns.map((t) => [t.id, t]));
+
+    type GeoAgg = { id: number; name: string; count: number; points: number; revenue?: number };
+    const wilayaOf = (townId: number | null) => {
+      if (!townId) return null;
+      const town = townMap.get(townId);
+      return town ? { id: town.city.id, name: town.city.nameFr } : null;
+    };
+    const communeOf = (townId: number | null) => {
+      if (!townId) return null;
+      const town = townMap.get(townId);
+      return town ? { id: town.id, name: town.nameFr } : null;
+    };
+    const bump = (map: Map<number, GeoAgg>, geo: { id: number; name: string } | null, points: number, revenue?: number) => {
+      if (!geo) return;
+      const cur = map.get(geo.id) || { id: geo.id, name: geo.name, count: 0, points: 0, ...(revenue !== undefined ? { revenue: 0 } : {}) };
+      cur.count++;
+      cur.points += points;
+      if (revenue !== undefined) cur.revenue = (cur.revenue || 0) + revenue;
+      map.set(geo.id, cur);
+    };
+
+    // Achats : totaux + répartition géographique
+    const purchTotals = { count: purchases.length, points: 0, revenue: 0 };
+    const purchByWilaya = new Map<number, GeoAgg>();
+    const purchByCommune = new Map<number, GeoAgg>();
+    for (const p of purchases) {
+      purchTotals.points += p.points;
+      purchTotals.revenue += p.price;
+      bump(purchByWilaya, wilayaOf(p.townId), p.points, p.price);
+      bump(purchByCommune, communeOf(p.townId), p.points, p.price);
+    }
+
+    // Dépenses : totaux + répartition Location/Vente + répartition géographique
+    const usageTotals = { count: usages.length, points: 0 };
+    const usageByType: Record<'LOCATION' | 'VENTE' | 'NON_CLASSE', { count: number; points: number }> = {
+      LOCATION: { count: 0, points: 0 },
+      VENTE: { count: 0, points: 0 },
+      NON_CLASSE: { count: 0, points: 0 },
+    };
+    const usageByWilaya = new Map<number, GeoAgg>();
+    const usageByCommune = new Map<number, GeoAgg>();
+    for (const u of usages) {
+      usageTotals.points += u.pointsUsed;
+      const t = u.announce?.type;
+      const cat: 'LOCATION' | 'VENTE' | 'NON_CLASSE' =
+        t === TransactionType.SALE ? 'VENTE' : t === TransactionType.RENTAL || t === TransactionType.HOLIDAY_RENTAL ? 'LOCATION' : 'NON_CLASSE';
+      usageByType[cat].count++;
+      usageByType[cat].points += u.pointsUsed;
+
+      const townId = u.user?.townId ?? null;
+      bump(usageByWilaya, wilayaOf(townId), u.pointsUsed);
+      bump(usageByCommune, communeOf(townId), u.pointsUsed);
+    }
+
+    const byPoints = (arr: GeoAgg[]) => arr.sort((a, b) => b.points - a.points);
+
+    return {
+      purchases: {
+        ...purchTotals,
+        byWilaya: byPoints([...purchByWilaya.values()]),
+        byCommune: byPoints([...purchByCommune.values()]).slice(0, 25),
+      },
+      usage: {
+        ...usageTotals,
+        byType: usageByType,
+        byWilaya: byPoints([...usageByWilaya.values()]),
+        byCommune: byPoints([...usageByCommune.values()]).slice(0, 25),
+      },
+    };
   }
 
   // --- Module Contact & Support : requêtes soumises via "Nous Contacter" ---

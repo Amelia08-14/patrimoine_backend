@@ -134,6 +134,31 @@ model BoutiqueSubscription {
   @@map("boutique_subscription")
 }
 
+// Offres "Points" et "Boutique" — modifiables par l'administrateur (titre, description,
+// prix, points attribués). "key" est l'identifiant stable référencé par PointPurchase.pack
+// / BoutiqueSubscription.pack (PACK_50, PACK_100, PACK_200, STANDARD, AVANCEE, ENTREPRISE) :
+// il ne doit jamais changer, seuls title/description/price/points sont éditables.
+model OfferPack {
+  id          Int           @id @default(autoincrement())
+  kind        OfferPackKind
+  key         String
+  title       String
+  description String?       @db.Text
+  price       Int
+  points      Int
+  order       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([kind, key])
+  @@map("offer_pack")
+}
+
+enum OfferPackKind {
+  POINTS
+  BOUTIQUE
+}
+
 // --- Locations (City / Town / Address) ---
 
 model City {

@@ -1,11 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
-const PACKS = {
-  PACK_50:  { points: 50,  price: 1500 },
-  PACK_100: { points: 100, price: 2500 },
-  PACK_200: { points: 200, price: 3500 },
-};
+import { OfferPackKind } from '@prisma/client';
 
 @Injectable()
 export class PointsService {
@@ -25,7 +20,7 @@ export class PointsService {
   }
 
   async purchasePack(userId: number, pack: string) {
-    const packDef = PACKS[pack as keyof typeof PACKS];
+    const packDef = await this.prisma.offerPack.findUnique({ where: { kind_key: { kind: OfferPackKind.POINTS, key: pack } } });
     if (!packDef) throw new BadRequestException('Pack invalide');
     return this.prisma.pointPurchase.create({
       data: { userId, pack, points: packDef.points, price: packDef.price, status: 'PENDING' }

@@ -17,6 +17,7 @@ import { LocationModule } from './location/location.module';
 import { PointsModule } from './points/points.module';
 import { BoutiqueSubModule } from './boutique-sub/boutique-sub.module';
 import { ContentModule } from './content/content.module';
+import { OfferPacksModule } from './offer-packs/offer-packs.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ContentModule } from './content/content.module';
     PointsModule,
     BoutiqueSubModule,
     ContentModule,
+    OfferPacksModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

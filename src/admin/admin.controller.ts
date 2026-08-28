@@ -1,6 +1,6 @@
 import { Controller, Get, Patch, Param, Body, UseGuards, Req, Put, Delete, Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AnnounceStatus, AccountStatus } from '@prisma/client';
+import { AnnounceStatus, AccountStatus, CompanyActivity } from '@prisma/client';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
@@ -9,9 +9,9 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('dashboard-stats')
-  async getDashboardStats(@Req() req: any) {
+  async getDashboardStats(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getDashboardStats();
+    return this.adminService.getDashboardStats({ from, to });
   }
 
   @Get('users')
@@ -23,9 +23,10 @@ export class AdminController {
     @Query('status') status?: 'ALL' | 'ACTIVE' | 'PENDING' | 'SUSPENDED',
     @Query('accountType') accountType?: 'ALL' | 'PRO' | 'PARTICULIER',
     @Query('pole') pole?: 'ALL' | 'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE',
+    @Query('subCategory') subCategory?: CompanyActivity | 'ALL',
   ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getAllUsers({ wilaya, commune, search, status, accountType, pole });
+    return this.adminService.getAllUsers({ wilaya, commune, search, status, accountType, pole, subCategory });
   }
 
   @Get('users/pending')
@@ -111,6 +112,20 @@ export class AdminController {
   ) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.adminService.getAllPurchases({ wilaya, commune, search, accountType, source, status });
+  }
+
+  @Get('points-kpi')
+  async getPointsKpi(
+    @Req() req: any,
+    @Query('wilaya') wilaya?: string,
+    @Query('commune') commune?: string,
+    @Query('accountType') accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE',
+    @Query('source') source?: 'ALL' | 'POINTS' | 'BOUTIQUE',
+    @Query('pack') pack?: string,
+    @Query('transactionType') transactionType?: 'ALL' | 'LOCATION' | 'VENTE',
+  ) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getPointsKpi({ wilaya, commune, accountType, source, pack, transactionType });
   }
 
   @Get('contacts')

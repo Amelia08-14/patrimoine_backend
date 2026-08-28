@@ -31,6 +31,11 @@ export class ContentController {
     return this.contentService.getFaqItems(true);
   }
 
+  @Get('content/useful-links')
+  getUsefulLinks() {
+    return this.contentService.getUsefulLinks(true);
+  }
+
   @Get('content/partners')
   getPartners(@Query('category') category?: PartnerCategory, @Query('subCategory') subCategory?: CompanyActivity) {
     return this.contentService.getPartners(true, category, subCategory);
@@ -54,16 +59,57 @@ export class ContentController {
 
   @Post('admin/content/legal/:page')
   @UseGuards(JwtAuthGuard)
-  async createLegalSection(@Req() req: any, @Param('page') page: string, @Body() body: { title: string; body: string; order?: number }) {
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: './uploads/legal',
+      filename: (req, file, cb) => {
+        const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+        return cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  async createLegalSection(
+    @Req() req: any,
+    @Param('page') page: string,
+    @Body() body: { title: string; body: string; order?: string },
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.contentService.createLegalSection(page.toUpperCase(), body.title, body.body, body.order ?? 0);
+    return this.contentService.createLegalSection(
+      page.toUpperCase(),
+      body.title,
+      body.body,
+      body.order ? Number(body.order) : 0,
+      image ? `/uploads/legal/${image.filename}` : undefined,
+    );
   }
 
   @Put('admin/content/legal/section/:id')
   @UseGuards(JwtAuthGuard)
-  async updateLegalSection(@Req() req: any, @Param('id') id: string, @Body() body: { title?: string; body?: string; order?: number; published?: boolean }) {
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: './uploads/legal',
+      filename: (req, file, cb) => {
+        const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+        return cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  async updateLegalSection(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { title?: string; body?: string; order?: string; published?: string; removeImage?: string },
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.contentService.updateLegalSection(Number(id), body);
+    return this.contentService.updateLegalSection(Number(id), {
+      ...(body.title !== undefined ? { title: body.title } : {}),
+      ...(body.body !== undefined ? { body: body.body } : {}),
+      ...(body.order !== undefined ? { order: Number(body.order) } : {}),
+      ...(body.published !== undefined ? { published: body.published === 'true' } : {}),
+      ...(image ? { imageUrl: `/uploads/legal/${image.filename}` } : {}),
+      ...(!image && body.removeImage === 'true' ? { imageUrl: null } : {}),
+    });
   }
 
   @Delete('admin/content/legal/section/:id')
@@ -169,5 +215,33 @@ export class ContentController {
   async deletePartner(@Req() req: any, @Param('id') id: string) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.deletePartner(Number(id));
+  }
+
+  @Get('admin/content/useful-links')
+  @UseGuards(JwtAuthGuard)
+  async adminGetUsefulLinks(@Req() req: any) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.getUsefulLinks(false);
+  }
+
+  @Post('admin/content/useful-links')
+  @UseGuards(JwtAuthGuard)
+  async createUsefulLink(@Req() req: any, @Body() body: { title: string; url: string; order?: number }) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.createUsefulLink(body.title, body.url, body.order ?? 0);
+  }
+
+  @Put('admin/content/useful-links/:id')
+  @UseGuards(JwtAuthGuard)
+  async updateUsefulLink(@Req() req: any, @Param('id') id: string, @Body() body: { title?: string; url?: string; order?: number; published?: boolean }) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.updateUsefulLink(Number(id), body);
+  }
+
+  @Delete('admin/content/useful-links/:id')
+  @UseGuards(JwtAuthGuard)
+  async deleteUsefulLink(@Req() req: any, @Param('id') id: string) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.deleteUsefulLink(Number(id));
   }
 }

@@ -499,15 +499,30 @@ model SiteSetting {
 
 model LegalSection {
   id        Int      @id @default(autoincrement())
-  page      String   // 'CGU' | 'CONFIDENTIALITE'
+  page      String   // 'CGU' | 'CONFIDENTIALITE' | 'A_PROPOS'
   title     String
   body      String   @db.Text // HTML enrichi (éditeur riche admin)
+  imageUrl  String?  // image d'illustration de la section (ex. page "Qui sommes-nous ?")
   published Boolean  @default(true)
   order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("legal_section")
+}
+
+// Liens Utiles : affichés automatiquement dans le footer du site public, gérés depuis
+// l'administration (Contenu du site). Un simple couple titre/URL, ordonnable.
+model UsefulLink {
+  id        Int      @id @default(autoincrement())
+  title     String
+  url       String
+  order     Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("useful_link")
 }
 
 model FaqItem {

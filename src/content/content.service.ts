@@ -35,11 +35,11 @@ export class ContentService {
     });
   }
 
-  async createLegalSection(page: string, title: string, body: string, order: number) {
-    return this.prisma.legalSection.create({ data: { page, title, body, order } });
+  async createLegalSection(page: string, title: string, body: string, order: number, imageUrl?: string) {
+    return this.prisma.legalSection.create({ data: { page, title, body, order, imageUrl } });
   }
 
-  async updateLegalSection(id: number, data: { title?: string; body?: string; order?: number; published?: boolean }) {
+  async updateLegalSection(id: number, data: { title?: string; body?: string; order?: number; published?: boolean; imageUrl?: string | null }) {
     return this.prisma.legalSection.update({ where: { id }, data });
   }
 
@@ -95,5 +95,28 @@ export class ContentService {
 
   async deletePartner(id: number) {
     return this.prisma.partner.delete({ where: { id } });
+  }
+
+  // --- Liens Utiles (affichés automatiquement dans le footer du site public) ---
+
+  async getUsefulLinks(publishedOnly: boolean) {
+    return this.prisma.usefulLink.findMany({
+      where: publishedOnly ? { published: true } : {},
+      orderBy: { order: 'asc' },
+    });
+  }
+
+  async createUsefulLink(title: string, url: string, order: number) {
+    return this.prisma.usefulLink.create({ data: { title, url, order } });
+  }
+
+  async updateUsefulLink(id: number, data: { title?: string; url?: string; order?: number; published?: boolean }) {
+    const item = await this.prisma.usefulLink.findUnique({ where: { id } });
+    if (!item) throw new NotFoundException('Lien introuvable');
+    return this.prisma.usefulLink.update({ where: { id }, data });
+  }
+
+  async deleteUsefulLink(id: number) {
+    return this.prisma.usefulLink.delete({ where: { id } });
   }
 }

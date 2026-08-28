@@ -132,6 +132,15 @@ export class AdminService {
     };
   }
 
+  // --- Filtre de période partagé (sur createdAt) : "from"/"to" au format YYYY-MM-DD, bornes incluses ---
+
+  private periodFilter(from?: string, to?: string) {
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(`${to}T23:59:59.999`) : undefined;
+    if (!fromDate && !toDate) return undefined;
+    return { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) };
+  }
+
   // --- Résolution géographique (townId -> wilaya/commune) ---
 
   private async resolveTownIds(wilaya?: string, commune?: string): Promise<number[] | undefined> {
@@ -159,6 +168,8 @@ export class AdminService {
     accountType?: 'ALL' | 'PRO' | 'PARTICULIER';
     pole?: 'ALL' | keyof typeof ACTIVITY_POLES;
     subCategory?: CompanyActivity | 'ALL';
+    from?: string;
+    to?: string;
   }) {
     const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
     const search = filters?.search?.trim();
@@ -166,8 +177,10 @@ export class AdminService {
     const accountType = filters?.accountType || 'ALL';
     const pole = filters?.pole || 'ALL';
     const subCategory = filters?.subCategory && filters.subCategory !== 'ALL' ? filters.subCategory : undefined;
+    const createdAt = this.periodFilter(filters?.from, filters?.to);
 
     const conditions: object[] = [{ NOT: { userType: UserType.ADMIN } }];
+    if (createdAt) conditions.push({ createdAt });
     if (townIds) conditions.push({ townId: { in: townIds } });
     if (accountType === 'PRO') conditions.push({ userType: UserType.SOCIETE });
     if (accountType === 'PARTICULIER') conditions.push({ userType: UserType.PARTICULIER });
@@ -188,6 +201,18 @@ export class AdminService {
       );
     }
     if (search) {
+      // Localisation : recherche libre par wilaya/commune (ex. "alger") en plus du sélecteur
+      // structuré. On résout le texte tapé contre les vraies wilayas/communes (via townId), pas
+      // seulement le texte brut d'address — certains comptes plus anciens ont une adresse au
+      // format "..., Wilaya 16" (code) plutôt que "..., Wilaya Alger" (nom lisible), et ne
+      // matcheraient donc jamais un simple `address contains`. Insensible à la casse (collation
+      // MySQL utf8mb4_unicode_ci).
+      const matchingTowns = await this.prisma.town.findMany({
+        where: { OR: [{ nameFr: { contains: search } }, { city: { nameFr: { contains: search } } }] },
+        select: { id: true },
+      });
+      const matchingTownIds = matchingTowns.map((t) => t.id);
+
       conditions.push({
         OR: [
           { firstName: { contains: search } },
@@ -197,6 +222,8 @@ export class AdminService {
           { phone: { contains: search } },
           { commercialRegister: { contains: search } },
           { nif: { contains: search } },
+          { address: { contains: search } },
+          ...(matchingTownIds.length ? [{ townId: { in: matchingTownIds } }] : []),
         ],
       });
     }
@@ -319,12 +346,14 @@ export class AdminService {
 
   // --- Announces Management ---
 
-  async getAllAnnounces(filters?: { wilaya?: string; commune?: string; search?: string }) {
+  async getAllAnnounces(filters?: { wilaya?: string; commune?: string; search?: string; from?: string; to?: string }) {
     const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
     const search = filters?.search?.trim();
+    const createdAt = this.periodFilter(filters?.from, filters?.to);
 
     const announces = await this.prisma.announce.findMany({
       where: {
+        ...(createdAt ? { createdAt } : {}),
         ...(townIds ? { property: { address: { townId: { in: townIds } } } } : {}),
         ...(search
           ? {
@@ -442,22 +471,63 @@ export class AdminService {
     });
   }
 
-  async getFeaturedKpis() {
-    return this.prisma.announce.findMany({
-      where: { featuredFrom: { not: null } },
+  async getFeaturedKpis(filters?: {
+    wilaya?: string;
+    commune?: string;
+    accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE';
+    pole?: 'ALL' | keyof typeof ACTIVITY_POLES;
+    subCategory?: CompanyActivity | 'ALL';
+    transactionType?: 'ALL' | 'LOCATION' | 'VENTE';
+    from?: string; // sur featuredFrom : date de mise en avant
+    to?: string;
+  }) {
+    const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
+    const accountType = filters?.accountType || 'ALL';
+    const pole = filters?.pole || 'ALL';
+    const subCategory = filters?.subCategory && filters.subCategory !== 'ALL' ? filters.subCategory : undefined;
+    const transactionType = filters?.transactionType || 'ALL';
+    const featuredFrom = this.periodFilter(filters?.from, filters?.to);
+
+    const announces = await this.prisma.announce.findMany({
+      where: {
+        featuredFrom: featuredFrom ? { ...featuredFrom, not: null } : { not: null },
+        ...(townIds ? { property: { address: { townId: { in: townIds } } } } : {}),
+        ...(transactionType === 'LOCATION' ? { type: { in: [TransactionType.RENTAL, TransactionType.HOLIDAY_RENTAL] } } : {}),
+        ...(transactionType === 'VENTE' ? { type: TransactionType.SALE } : {}),
+        ...(accountType === 'PARTICULIER' ? { user: { userType: UserType.PARTICULIER } } : {}),
+        ...(accountType === 'SOCIETE' ? { user: { userType: UserType.SOCIETE } } : {}),
+        ...(subCategory
+          ? { user: { companyActivity: subCategory } }
+          : pole !== 'ALL'
+          ? { user: { companyActivity: { in: ACTIVITY_POLES[pole] } } }
+          : {}),
+      },
       orderBy: { featuredFrom: 'desc' },
       select: {
         id: true,
         reference: true,
         title: true,
         status: true,
+        type: true,
         nbViews: true,
         nbCalls: true,
         featuredFrom: true,
         featuredUntil: true,
-        property: { select: { propertyType: true } },
+        property: {
+          select: {
+            propertyType: true,
+            address: { select: { town: { select: { nameFr: true, city: { select: { nameFr: true } } } } } },
+          },
+        },
+        user: { select: { userType: true, companyActivity: true, companyName: true, firstName: true, lastName: true } },
       },
     });
+
+    return announces.map((a) => ({
+      ...a,
+      user: a.user ? { ...a.user, pole: a.user.userType === UserType.PARTICULIER ? null : poleForActivity(a.user.companyActivity) } : a.user,
+      location: a.property?.address?.town ? `${a.property.address.town.nameFr} (${a.property.address.town.city.nameFr})` : null,
+    }));
   }
 
   // --- Achats (Points & Boutique) : vue unifiée et filtrable pour le dashboard admin ---
@@ -469,12 +539,15 @@ export class AdminService {
     accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE';
     source?: 'ALL' | 'POINTS' | 'BOUTIQUE';
     status?: string;
+    from?: string;
+    to?: string;
   }) {
     const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
     const search = filters?.search?.trim();
     const accountType = filters?.accountType || 'ALL';
     const source = filters?.source || 'ALL';
     const status = filters?.status && filters.status !== 'ALL' ? filters.status : undefined;
+    const createdAt = this.periodFilter(filters?.from, filters?.to);
 
     const userWhere = {
       ...(townIds ? { townId: { in: townIds } } : {}),
@@ -505,14 +578,14 @@ export class AdminService {
       source === 'BOUTIQUE'
         ? Promise.resolve([])
         : this.prisma.pointPurchase.findMany({
-            where: { ...(status ? { status } : {}), user: userWhere },
+            where: { ...(status ? { status } : {}), ...(createdAt ? { createdAt } : {}), user: userWhere },
             include: { user: { select: userSelect } },
             orderBy: { createdAt: 'desc' },
           }),
       source === 'POINTS'
         ? Promise.resolve([])
         : this.prisma.boutiqueSubscription.findMany({
-            where: { ...(status ? { status } : {}), user: userWhere },
+            where: { ...(status ? { status } : {}), ...(createdAt ? { createdAt } : {}), user: userWhere },
             include: { user: { select: userSelect } },
             orderBy: { createdAt: 'desc' },
           }),
@@ -554,39 +627,62 @@ export class AdminService {
     source?: 'ALL' | 'POINTS' | 'BOUTIQUE'; // ne s'applique qu'aux achats
     pack?: string; // clé OfferPack.key ; ne s'applique qu'aux achats
     transactionType?: 'ALL' | 'LOCATION' | 'VENTE'; // ne s'applique qu'aux dépenses
+    pole?: 'ALL' | keyof typeof ACTIVITY_POLES; // affine "Professionnel" par pôle d'activité
+    subCategory?: CompanyActivity | 'ALL'; // affine encore par sous-catégorie précise
+    from?: string;
+    to?: string;
   }) {
     const townIds = await this.resolveTownIds(filters?.wilaya, filters?.commune);
     const accountType = filters?.accountType || 'ALL';
     const source = filters?.source || 'ALL';
     const pack = filters?.pack && filters.pack !== 'ALL' ? filters.pack : undefined;
     const transactionType = filters?.transactionType || 'ALL';
+    const pole = filters?.pole || 'ALL';
+    const subCategory = filters?.subCategory && filters.subCategory !== 'ALL' ? filters.subCategory : undefined;
+    const periodPurchase = this.periodFilter(filters?.from, filters?.to); // sur createdAt (date d'achat)
+    const periodUsage = this.periodFilter(filters?.from, filters?.to); // sur usageDate (date de dépense)
 
     const userWhere = {
       ...(townIds ? { townId: { in: townIds } } : {}),
       ...(accountType === 'PARTICULIER' ? { userType: UserType.PARTICULIER } : {}),
       ...(accountType === 'SOCIETE' ? { userType: UserType.SOCIETE } : {}),
+      ...(subCategory
+        ? { companyActivity: subCategory }
+        : pole !== 'ALL'
+        ? { companyActivity: { in: ACTIVITY_POLES[pole] } }
+        : {}),
     };
-    const userSelect = { id: true, userType: true, townId: true } as const;
+    // + companyName/firstName/lastName/companyActivity : nécessaires pour les classements "par client"
+    // et "par type de professionnel" (fréquence + volume de dépense), en plus de la géolocalisation.
+    const userSelect = {
+      id: true,
+      userType: true,
+      townId: true,
+      companyName: true,
+      firstName: true,
+      lastName: true,
+      companyActivity: true,
+    } as const;
 
     // --- Achats : uniquement les achats validés (chiffre d'affaires réel, pas les demandes en attente/rejetées) ---
     const [pointPurchases, boutiqueSubs] = await Promise.all([
       source === 'BOUTIQUE'
         ? Promise.resolve([])
         : this.prisma.pointPurchase.findMany({
-            where: { status: 'VALIDATED', user: userWhere, ...(pack ? { pack } : {}) },
+            where: { status: 'VALIDATED', user: userWhere, ...(pack ? { pack } : {}), ...(periodPurchase ? { createdAt: periodPurchase } : {}) },
             select: { points: true, price: true, user: { select: userSelect } },
           }),
       source === 'POINTS'
         ? Promise.resolve([])
         : this.prisma.boutiqueSubscription.findMany({
-            where: { status: 'VALIDATED', user: userWhere, ...(pack ? { pack } : {}) },
+            where: { status: 'VALIDATED', user: userWhere, ...(pack ? { pack } : {}), ...(periodPurchase ? { createdAt: periodPurchase } : {}) },
             select: { pointsIncluded: true, price: true, user: { select: userSelect } },
           }),
     ]);
 
     const purchases = [
-      ...pointPurchases.map((p) => ({ points: p.points, price: p.price, townId: p.user?.townId ?? null })),
-      ...boutiqueSubs.map((s) => ({ points: s.pointsIncluded, price: s.price, townId: s.user?.townId ?? null })),
+      ...pointPurchases.map((p) => ({ points: p.points, price: p.price, townId: p.user?.townId ?? null, user: p.user })),
+      ...boutiqueSubs.map((s) => ({ points: s.pointsIncluded, price: s.price, townId: s.user?.townId ?? null, user: s.user })),
     ];
 
     // --- Dépenses : PointUsage relié à l'annonce boostée (pour son type Location/Vente) ---
@@ -601,6 +697,7 @@ export class AdminService {
       where: {
         user: userWhere,
         ...(announceTypeWhere ? { announce: announceTypeWhere } : {}),
+        ...(periodUsage ? { usageDate: periodUsage } : {}),
       },
       select: {
         pointsUsed: true,
@@ -642,18 +739,52 @@ export class AdminService {
       map.set(geo.id, cur);
     };
 
-    // Achats : totaux + répartition géographique
+    // --- Classement "par client" et "par type de professionnel" : combien un client dépense/achète
+    // ET à quelle fréquence (count = nombre d'achats / de mises en avant), pas seulement le volume.
+    type ClientUser = { id: number; userType: UserType; companyName: string | null; firstName: string | null; lastName: string | null; companyActivity: CompanyActivity | null } | null;
+    type ClientAgg = { id: number; name: string; type: 'PARTICULIER' | 'SOCIETE'; count: number; points: number; revenue?: number };
+    type ActivityAgg = { id: string; count: number; points: number; revenue?: number };
+
+    const clientName = (u: ClientUser) => (!u ? 'Compte inconnu' : u.companyName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || `Compte #${u.id}`);
+    const bumpClient = (map: Map<number, ClientAgg>, u: ClientUser, points: number, revenue?: number) => {
+      if (!u) return;
+      const cur = map.get(u.id) || { id: u.id, name: clientName(u), type: u.userType as 'PARTICULIER' | 'SOCIETE', count: 0, points: 0, ...(revenue !== undefined ? { revenue: 0 } : {}) };
+      cur.count++;
+      cur.points += points;
+      if (revenue !== undefined) cur.revenue = (cur.revenue || 0) + revenue;
+      map.set(u.id, cur);
+    };
+    const activityIdOf = (u: ClientUser): string | null => {
+      if (!u) return null;
+      if (u.userType === UserType.PARTICULIER) return 'PARTICULIER';
+      return poleForActivity(u.companyActivity) || 'NON_CLASSE';
+    };
+    const bumpActivity = (map: Map<string, ActivityAgg>, u: ClientUser, points: number, revenue?: number) => {
+      const id = activityIdOf(u);
+      if (!id) return;
+      const cur = map.get(id) || { id, count: 0, points: 0, ...(revenue !== undefined ? { revenue: 0 } : {}) };
+      cur.count++;
+      cur.points += points;
+      if (revenue !== undefined) cur.revenue = (cur.revenue || 0) + revenue;
+      map.set(id, cur);
+    };
+
+    // Achats : totaux + répartition géographique + par client + par type de professionnel
     const purchTotals = { count: purchases.length, points: 0, revenue: 0 };
     const purchByWilaya = new Map<number, GeoAgg>();
     const purchByCommune = new Map<number, GeoAgg>();
+    const purchByClient = new Map<number, ClientAgg>();
+    const purchByActivity = new Map<string, ActivityAgg>();
     for (const p of purchases) {
       purchTotals.points += p.points;
       purchTotals.revenue += p.price;
       bump(purchByWilaya, wilayaOf(p.townId), p.points, p.price);
       bump(purchByCommune, communeOf(p.townId), p.points, p.price);
+      bumpClient(purchByClient, p.user, p.points, p.price);
+      bumpActivity(purchByActivity, p.user, p.points, p.price);
     }
 
-    // Dépenses : totaux + répartition Location/Vente + répartition géographique
+    // Dépenses : totaux + répartition Location/Vente + géographique + par client + par type de professionnel
     const usageTotals = { count: usages.length, points: 0 };
     const usageByType: Record<'LOCATION' | 'VENTE' | 'NON_CLASSE', { count: number; points: number }> = {
       LOCATION: { count: 0, points: 0 },
@@ -662,6 +793,8 @@ export class AdminService {
     };
     const usageByWilaya = new Map<number, GeoAgg>();
     const usageByCommune = new Map<number, GeoAgg>();
+    const usageByClient = new Map<number, ClientAgg>();
+    const usageByActivity = new Map<string, ActivityAgg>();
     for (const u of usages) {
       usageTotals.points += u.pointsUsed;
       const t = u.announce?.type;
@@ -673,21 +806,27 @@ export class AdminService {
       const townId = u.user?.townId ?? null;
       bump(usageByWilaya, wilayaOf(townId), u.pointsUsed);
       bump(usageByCommune, communeOf(townId), u.pointsUsed);
+      bumpClient(usageByClient, u.user, u.pointsUsed);
+      bumpActivity(usageByActivity, u.user, u.pointsUsed);
     }
 
-    const byPoints = (arr: GeoAgg[]) => arr.sort((a, b) => b.points - a.points);
+    const byPoints = <T extends { points: number }>(arr: T[]) => arr.sort((a, b) => b.points - a.points);
 
     return {
       purchases: {
         ...purchTotals,
         byWilaya: byPoints([...purchByWilaya.values()]),
         byCommune: byPoints([...purchByCommune.values()]).slice(0, 25),
+        byClient: byPoints([...purchByClient.values()]).slice(0, 25),
+        byActivity: byPoints([...purchByActivity.values()]),
       },
       usage: {
         ...usageTotals,
         byType: usageByType,
         byWilaya: byPoints([...usageByWilaya.values()]),
         byCommune: byPoints([...usageByCommune.values()]).slice(0, 25),
+        byClient: byPoints([...usageByClient.values()]).slice(0, 25),
+        byActivity: byPoints([...usageByActivity.values()]),
       },
     };
   }

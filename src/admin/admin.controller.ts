@@ -24,9 +24,11 @@ export class AdminController {
     @Query('accountType') accountType?: 'ALL' | 'PRO' | 'PARTICULIER',
     @Query('pole') pole?: 'ALL' | 'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE',
     @Query('subCategory') subCategory?: CompanyActivity | 'ALL',
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getAllUsers({ wilaya, commune, search, status, accountType, pole, subCategory });
+    return this.adminService.getAllUsers({ wilaya, commune, search, status, accountType, pole, subCategory, from, to });
   }
 
   @Get('users/pending')
@@ -65,9 +67,11 @@ export class AdminController {
     @Query('wilaya') wilaya?: string,
     @Query('commune') commune?: string,
     @Query('search') search?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getAllAnnounces({ wilaya, commune, search });
+    return this.adminService.getAllAnnounces({ wilaya, commune, search, from, to });
   }
 
   @Get('announces/pending')
@@ -95,9 +99,19 @@ export class AdminController {
   }
 
   @Get('announces/featured-kpis')
-  async getFeaturedKpis(@Req() req: any) {
+  async getFeaturedKpis(
+    @Req() req: any,
+    @Query('wilaya') wilaya?: string,
+    @Query('commune') commune?: string,
+    @Query('accountType') accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE',
+    @Query('pole') pole?: 'ALL' | 'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE',
+    @Query('subCategory') subCategory?: CompanyActivity | 'ALL',
+    @Query('transactionType') transactionType?: 'ALL' | 'LOCATION' | 'VENTE',
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getFeaturedKpis();
+    return this.adminService.getFeaturedKpis({ wilaya, commune, accountType, pole, subCategory, transactionType, from, to });
   }
 
   @Get('purchases')
@@ -109,9 +123,11 @@ export class AdminController {
     @Query('accountType') accountType?: 'ALL' | 'PARTICULIER' | 'SOCIETE',
     @Query('source') source?: 'ALL' | 'POINTS' | 'BOUTIQUE',
     @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getAllPurchases({ wilaya, commune, search, accountType, source, status });
+    return this.adminService.getAllPurchases({ wilaya, commune, search, accountType, source, status, from, to });
   }
 
   @Get('points-kpi')
@@ -123,9 +139,13 @@ export class AdminController {
     @Query('source') source?: 'ALL' | 'POINTS' | 'BOUTIQUE',
     @Query('pack') pack?: string,
     @Query('transactionType') transactionType?: 'ALL' | 'LOCATION' | 'VENTE',
+    @Query('pole') pole?: 'ALL' | 'IMMOBILIER' | 'HOTELLERIE' | 'EVENEMENTIEL' | 'ENTREPOSAGE',
+    @Query('subCategory') subCategory?: CompanyActivity | 'ALL',
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.adminService.getPointsKpi({ wilaya, commune, accountType, source, pack, transactionType });
+    return this.adminService.getPointsKpi({ wilaya, commune, accountType, source, pack, transactionType, pole, subCategory, from, to });
   }
 
   @Get('contacts')

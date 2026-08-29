@@ -568,3 +568,30 @@ model Partner {
 
   @@map("partner")
 }
+
+enum PartnerApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Candidature reçue depuis le bouton "Devenir partenaire" de la page publique /partenaires.
+// Étudiée et validée depuis le dashboard admin ; l'approbation crée automatiquement un Partner publié.
+model PartnerApplication {
+  id          Int                       @id @default(autoincrement())
+  companyName String
+  contactName String
+  email       String
+  phone       String
+  category    PartnerCategory?
+  subCategory CompanyActivity?
+  websiteUrl  String?
+  message     String?                   @db.Text
+  logoUrl     String?
+  status      PartnerApplicationStatus  @default(PENDING)
+  adminNote   String?                   @db.Text
+  createdAt   DateTime                  @default(now())
+  reviewedAt  DateTime?
+
+  @@map("partner_application")
+}

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PartnerCategory, CompanyActivity } from '@prisma/client';
+import { PartnerCategory, CompanyActivity, PartnerApplicationStatus } from '@prisma/client';
 
 @Injectable()
 export class ContentService {
@@ -95,6 +95,60 @@ export class ContentService {
 
   async deletePartner(id: number) {
     return this.prisma.partner.delete({ where: { id } });
+  }
+
+  // --- Candidatures "Devenir partenaire" (formulaire public /partenaires) ---
+
+  async createPartnerApplication(data: {
+    companyName: string;
+    contactName: string;
+    email: string;
+    phone: string;
+    category?: PartnerCategory;
+    subCategory?: CompanyActivity;
+    websiteUrl?: string;
+    message?: string;
+    logoUrl?: string;
+  }) {
+    return this.prisma.partnerApplication.create({ data });
+  }
+
+  async getPartnerApplications(status?: PartnerApplicationStatus) {
+    return this.prisma.partnerApplication.findMany({
+      where: status ? { status } : {},
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // L'approbation crée automatiquement le Partner publié à partir de la candidature ; le rejet
+  // ne fait que consigner le statut. adminNote optionnelle dans les deux cas.
+  async reviewPartnerApplication(id: number, status: 'APPROVED' | 'REJECTED', adminNote?: string) {
+    const application = await this.prisma.partnerApplication.findUnique({ where: { id } });
+    if (!application) throw new NotFoundException('Candidature introuvable');
+
+    const updated = await this.prisma.partnerApplication.update({
+      where: { id },
+      data: { status, adminNote, reviewedAt: new Date() },
+    });
+
+    if (status === 'APPROVED') {
+      await this.prisma.partner.create({
+        data: {
+          name: application.companyName,
+          logoUrl: application.logoUrl,
+          websiteUrl: application.websiteUrl,
+          category: application.category,
+          subCategory: application.subCategory,
+          published: true,
+        },
+      });
+    }
+
+    return updated;
+  }
+
+  async deletePartnerApplication(id: number) {
+    return this.prisma.partnerApplication.delete({ where: { id } });
   }
 
   // --- Slides du hero de la page d'accueil ---

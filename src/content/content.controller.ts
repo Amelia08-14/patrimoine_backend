@@ -5,7 +5,7 @@ import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminService } from '../admin/admin.service';
 import { ContentService } from './content.service';
-import { PartnerCategory, CompanyActivity } from '@prisma/client';
+import { PartnerCategory, CompanyActivity, PartnerApplicationStatus } from '@prisma/client';
 
 @Controller()
 export class ContentController {
@@ -44,6 +44,36 @@ export class ContentController {
   @Get('content/partners')
   getPartners(@Query('category') category?: PartnerCategory, @Query('subCategory') subCategory?: CompanyActivity) {
     return this.contentService.getPartners(true, category, subCategory);
+  }
+
+  @Post('content/partner-applications')
+  @UseInterceptors(FileInterceptor('logo', {
+    storage: diskStorage({
+      destination: './uploads/partners',
+      filename: (req, file, cb) => {
+        const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+        return cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  async createPartnerApplication(
+    @Body() body: { companyName: string; contactName: string; email: string; phone: string; category?: PartnerCategory; subCategory?: CompanyActivity; websiteUrl?: string; message?: string },
+    @UploadedFile() logo?: Express.Multer.File,
+  ) {
+    if (!body.companyName || !body.contactName || !body.email || !body.phone) {
+      throw new BadRequestException('Nom de l\'entreprise, contact, email et téléphone sont requis');
+    }
+    return this.contentService.createPartnerApplication({
+      companyName: body.companyName,
+      contactName: body.contactName,
+      email: body.email,
+      phone: body.phone,
+      category: body.category || undefined,
+      subCategory: body.subCategory || undefined,
+      websiteUrl: body.websiteUrl || undefined,
+      message: body.message || undefined,
+      logoUrl: logo ? `/uploads/partners/${logo.filename}` : undefined,
+    });
   }
 
   // ── ADMIN ──
@@ -220,6 +250,31 @@ export class ContentController {
   async deletePartner(@Req() req: any, @Param('id') id: string) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.deletePartner(Number(id));
+  }
+
+  @Get('admin/content/partner-applications')
+  @UseGuards(JwtAuthGuard)
+  async adminGetPartnerApplications(@Req() req: any, @Query('status') status?: PartnerApplicationStatus) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.getPartnerApplications(status);
+  }
+
+  @Put('admin/content/partner-applications/:id')
+  @UseGuards(JwtAuthGuard)
+  async reviewPartnerApplication(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { status: 'APPROVED' | 'REJECTED'; adminNote?: string },
+  ) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.reviewPartnerApplication(Number(id), body.status, body.adminNote);
+  }
+
+  @Delete('admin/content/partner-applications/:id')
+  @UseGuards(JwtAuthGuard)
+  async deletePartnerApplication(@Req() req: any, @Param('id') id: string) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.contentService.deletePartnerApplication(Number(id));
   }
 
   @Get('admin/content/hero-slides')

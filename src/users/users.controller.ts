@@ -19,6 +19,7 @@ export class UsersController {
         announces: {
           orderBy: { createdAt: 'desc' },
         },
+        town: { include: { city: true } },
       },
     });
 
@@ -157,6 +158,7 @@ export class UsersController {
         dateOfBirth: true,
         address: true,
         townId: true,
+        town: { include: { city: true } },
         position: true,
         rcDocumentUrl: true,
         agreementDocumentUrl: true,
@@ -180,5 +182,45 @@ export class UsersController {
         lastName: data.lastName,
       },
     });
+  }
+
+  // "Mes statistiques" — particulier : clics annonces, appels par canal, emails, messages
+  // internes reçus, signalements sur ses annonces. Professionnel : + contacts via boutique et
+  // abonnés (les vues de stories vivent dans la config JSON de la boutique côté frontend et sont
+  // agrégées là-bas, pas ici).
+  @UseGuards(JwtAuthGuard)
+  @Get('me/stats')
+  async getMyStats(@Req() req: any) {
+    const userId = req.user.userId;
+
+    const [announces, clicksByChannel, internalMessages, reports, boutiqueContacts, followers] = await Promise.all([
+      this.prisma.announce.findMany({ where: { userId }, select: { nbViews: true } }),
+      this.prisma.contactClick.groupBy({
+        by: ['channel'],
+        where: { ownerId: userId, announceId: { not: null } },
+        _count: { _all: true },
+      }),
+      this.prisma.message.count({ where: { receiverId: userId } }),
+      this.prisma.report.count({ where: { ownerId: userId } }),
+      this.prisma.contactClick.count({ where: { ownerId: userId, announceId: null } }),
+      this.prisma.boutiqueFollow.count({ where: { ownerId: userId } }),
+    ]);
+
+    const announceClicks = announces.reduce((sum, a) => sum + a.nbViews, 0);
+    const byChannel: Record<string, number> = { CALL: 0, WHATSAPP: 0, TELEGRAM: 0, VIBER: 0, EMAIL: 0 };
+    clicksByChannel.forEach((c) => { byChannel[c.channel] = c._count._all; });
+
+    return {
+      announceClicks,
+      calls: {
+        total: byChannel.CALL + byChannel.WHATSAPP + byChannel.TELEGRAM + byChannel.VIBER,
+        byChannel: { CALL: byChannel.CALL, WHATSAPP: byChannel.WHATSAPP, TELEGRAM: byChannel.TELEGRAM, VIBER: byChannel.VIBER },
+      },
+      emails: byChannel.EMAIL,
+      internalMessages,
+      reports,
+      boutiqueContacts,
+      boutiqueFollowers: followers,
+    };
   }
 }

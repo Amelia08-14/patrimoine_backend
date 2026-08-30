@@ -60,7 +60,8 @@ model User {
   lastLoginAt   DateTime?
 
   townId        Int?
-  
+  town          Town?     @relation(fields: [townId], references: [id])
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -73,8 +74,29 @@ model User {
   favorites     Favorite[]
   sentMessages     Message[]  @relation("SentMessages")
   receivedMessages Message[]  @relation("ReceivedMessages")
+  boutiqueFollowing BoutiqueFollow[] @relation("BoutiqueFollower")
+  boutiqueFollowers BoutiqueFollow[] @relation("BoutiqueOwner")
+  contactClicks     ContactClick[]   @relation("ContactClickOwner")
+  reportsReceived   Report[]         @relation("ReportedOwner")
+  reportsMade       Report[]         @relation("Reporter")
 
   @@map("user")
+}
+
+// Abonnement d'un visiteur à la boutique publique d'un professionnel (bouton "S'abonner").
+// Compteur réel affiché sur la boutique, et matière première pour les statistiques du pro.
+model BoutiqueFollow {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+
+  followerId Int
+  follower   User     @relation("BoutiqueFollower", fields: [followerId], references: [id], onDelete: Cascade)
+
+  ownerId    Int
+  owner      User     @relation("BoutiqueOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, ownerId])
+  @@map("boutique_follow")
 }
 
 model UserPoint {
@@ -184,6 +206,7 @@ model Town {
   city    City   @relation(fields: [cityId], references: [id])
   
   addresses Address[]
+  users     User[]
 
   @@map("town")
 }
@@ -232,6 +255,8 @@ model Announce {
   pointUsages     PointUsage[]
   favoritedBy     Favorite[]
   messages        Message[]
+  contactClicks   ContactClick[]
+  reports         Report[]
 
   @@map("announce")
 }
@@ -361,7 +386,54 @@ model Message {
   @@map("message")
 }
 
+// Clic sur un moyen de contact — bouton d'appel/WhatsApp/Telegram/Viber/email d'une annonce,
+// ou bouton de contact de la boutique elle-même (announceId alors null). Matière première des
+// statistiques "Mes statistiques" (particulier et professionnel).
+model ContactClick {
+  id         Int            @id @default(autoincrement())
+  channel    ContactChannel
+  createdAt  DateTime       @default(now())
+
+  announceId Int?
+  announce   Announce?      @relation(fields: [announceId], references: [id], onDelete: Cascade)
+
+  // Propriétaire de l'annonce (ou de la boutique) — dénormalisé pour agréger vite par utilisateur
+  // sans dépendre d'une jointure via announce (nécessaire pour les clics au niveau boutique).
+  ownerId    Int
+  owner      User           @relation("ContactClickOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("contact_click")
+}
+
+// Signalement d'une annonce (bouton "Signaler un problème"). Compte réel dans les statistiques
+// du propriétaire de l'annonce signalée.
+model Report {
+  id         Int      @id @default(autoincrement())
+  reason     String
+  message    String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  announceId Int
+  announce   Announce @relation(fields: [announceId], references: [id], onDelete: Cascade)
+
+  ownerId    Int
+  owner      User     @relation("ReportedOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  reporterId Int?
+  reporter   User?    @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@map("report")
+}
+
 // --- Enums ---
+
+enum ContactChannel {
+  CALL
+  WHATSAPP
+  TELEGRAM
+  VIBER
+  EMAIL
+}
 
 enum AnnounceStatus {
   DRAFT

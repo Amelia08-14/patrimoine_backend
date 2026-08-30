@@ -43,6 +43,32 @@ export class AnnounceController {
     return this.announceService.incrementCalls(Number(id));
   }
 
+  // Suivi KPI détaillé par canal — repris dans "Mes statistiques" (appels/whatsapp/telegram/
+  // viber distingués, email compté à part). Public : aucune connexion requise pour contacter.
+  @Post(':id/contact')
+  async trackContact(@Param('id') id: string, @Body('channel') channel: string) {
+    return this.announceService.trackContactClick(Number(id), channel);
+  }
+
+  // Signalement d'une annonce — connecté ou non (reporterId facultatif).
+  @Post(':id/report')
+  async reportAnnounce(
+    @Param('id') id: string,
+    @Body() body: { reason: string; message?: string },
+    @Req() req: any,
+  ) {
+    let reporterId: number | undefined;
+    const auth = req.headers?.authorization;
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const payload = jwt.verify(auth.slice(7), 'SECRET_KEY_A_CHANGER_EN_PROD');
+        reporterId = payload?.sub;
+      } catch { /* signalement anonyme si le token est absent/invalide */ }
+    }
+    return this.announceService.reportAnnounce(Number(id), body.reason, body.message, reporterId);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post()
   @UseInterceptors(FileFieldsInterceptor([

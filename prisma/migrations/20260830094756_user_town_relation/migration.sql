@@ -1,0 +1,2 @@
+-- AddForeignKey
+ALTER TABLE `user` ADD CONSTRAINT `user_townId_fkey` FOREIGN KEY (`townId`) REFERENCES `town`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

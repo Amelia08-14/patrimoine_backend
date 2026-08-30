@@ -30,6 +30,40 @@ export class BoutiqueSubController {
     return this.service.getActiveSubscription(Number(userId));
   }
 
+  // ── Abonnés à la boutique (bouton "S'abonner" public) ──
+
+  @Post('follow/:ownerId')
+  @UseGuards(JwtAuthGuard)
+  follow(@Req() req: any, @Param('ownerId') ownerId: string) {
+    return this.service.followBoutique(req.user.userId, Number(ownerId));
+  }
+
+  @Post('unfollow/:ownerId')
+  @UseGuards(JwtAuthGuard)
+  unfollow(@Req() req: any, @Param('ownerId') ownerId: string) {
+    return this.service.unfollowBoutique(req.user.userId, Number(ownerId));
+  }
+
+  // Public : compteur d'abonnés (+ statut si connecté, via un token optionnel côté frontend)
+  @Get('follow/:ownerId/status')
+  followStatus(@Param('ownerId') ownerId: string, @Query('followerId') followerId?: string) {
+    return this.service.getBoutiqueFollowStatus(Number(ownerId), followerId ? Number(followerId) : undefined);
+  }
+
+  // Le pro consulte la liste de ses abonnés (statistiques)
+  @Get('followers/mine')
+  @UseGuards(JwtAuthGuard)
+  myFollowers(@Req() req: any) {
+    return this.service.getBoutiqueFollowers(req.user.userId);
+  }
+
+  // Clic sur un bouton de contact affiché directement sur la boutique publique — public,
+  // aucune connexion requise pour contacter un pro.
+  @Post(':ownerId/contact')
+  trackBoutiqueContact(@Param('ownerId') ownerId: string, @Body('channel') channel: string) {
+    return this.service.trackBoutiqueContact(Number(ownerId), channel);
+  }
+
   // ── ADMIN ──
 
   @Get('admin/all')

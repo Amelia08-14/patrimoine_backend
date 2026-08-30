@@ -164,14 +164,13 @@ export class AuthService {
           !user.lastName ||
           !user.dateOfBirth ||
           !user.phone ||
-          !user.address ||
           !user.townId
         ) isProfileComplete = false;
     } else if (user.userType === 'SOCIETE') {
         // Pour une société, on vérifie les documents
         // if (!user.rcDocumentUrl || !user.agreementDocumentUrl) isProfileComplete = false;
-        // Pour l'instant on simplifie, on considère incomplet si pas d'adresse
-        if (!user.address) isProfileComplete = false;
+        // Pour l'instant on simplifie, on considère incomplet si pas de wilaya/commune
+        if (!user.townId) isProfileComplete = false;
     }
 
     // Générer le token JWT

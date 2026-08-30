@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnounceDto } from './dto/create-announce.dto';
-import { AnnounceStatus, TransactionType } from '@prisma/client';
+import { AnnounceStatus, TransactionType, ContactChannel } from '@prisma/client';
 
 @Injectable()
 export class AnnounceService {
@@ -37,7 +37,7 @@ export class AnnounceService {
         propertyType, amenities,
         landArea, builtArea, typology, floorCount, state,
         facadesCount, acceptsBankCredit, legalDocuments,
-        parkingCount, outdoorParking, usageType, acceptsCrossUsage, cadreModeVie,
+        parkingCount, outdoorParking, usageType, acceptsCrossUsage, cadreModeVie, buildingUsageTypes,
         buildingTypologyMode, buildingApartmentTypologyCustom, buildingTotalApartments, buildingSurfaceMode,
         buildingApartmentTypologies, buildingApartmentTypologyOther, buildingApartmentStyle,
         buildingCountF3, buildingCountF4, buildingCountF5,
@@ -135,6 +135,9 @@ export class AnnounceService {
     if (utilities) featuresPayload.utilities = parseJsonArray(utilities);
     if (securityFeatures) featuresPayload.securityFeatures = parseJsonArray(securityFeatures);
     if (connectivity) featuresPayload.connectivity = parseJsonArray(connectivity);
+    // Cadre et mode de vie (Quartier classique / Résidence clôturée / Promotion immobilière) — choix multiple,
+    // commun à tous les types de biens d'habitation (pas seulement l'Immeuble comme auparavant).
+    if (buildingUsageTypes) featuresPayload.buildingUsageTypes = parseJsonArray(buildingUsageTypes);
     
     if (propertyType === 'IMMEUBLE_RESIDENTIEL' && buildingTypologyMode) {
         const selectedTypologies = parseJsonArray(buildingApartmentTypologies);
@@ -412,6 +415,35 @@ export class AnnounceService {
     });
   }
 
+  // Suivi détaillé par canal (appel/whatsapp/telegram/viber/email) — matière première de
+  // "Mes statistiques". Garde aussi nbCalls à jour pour les usages existants sur ce compteur.
+  async trackContactClick(announceId: number, channel: string) {
+    const validChannels = Object.values(ContactChannel);
+    if (!validChannels.includes(channel as ContactChannel)) {
+      throw new BadRequestException('Canal de contact invalide');
+    }
+    const announce = await this.prisma.announce.findUnique({ where: { id: announceId }, select: { userId: true } });
+    if (!announce) throw new NotFoundException('Annonce introuvable');
+
+    const [click] = await this.prisma.$transaction([
+      this.prisma.contactClick.create({
+        data: { announceId, ownerId: announce.userId, channel: channel as ContactChannel },
+      }),
+      ...(channel === 'CALL' ? [this.prisma.announce.update({ where: { id: announceId }, data: { nbCalls: { increment: 1 } } })] : []),
+    ]);
+    return { success: true, id: click.id };
+  }
+
+  async reportAnnounce(announceId: number, reason: string, message: string | undefined, reporterId: number | undefined) {
+    if (!reason) throw new BadRequestException('Motif du signalement requis');
+    const announce = await this.prisma.announce.findUnique({ where: { id: announceId }, select: { userId: true } });
+    if (!announce) throw new NotFoundException('Annonce introuvable');
+
+    return this.prisma.report.create({
+      data: { announceId, ownerId: announce.userId, reason, message, reporterId },
+    });
+  }
+
   async findOne(id: number) {
     // Increment view count
     await this.prisma.announce.update({
@@ -422,7 +454,7 @@ export class AnnounceService {
     return this.prisma.announce.findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, companyName: true, imageUrl: true, userType: true } },
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, companyName: true, imageUrl: true, agencyLogoUrl: true, userType: true } },
         property: {
           include: {
             images: true,
@@ -453,7 +485,7 @@ export class AnnounceService {
   }
 
   async findByUser(userId: number) {
-    return this.prisma.announce.findMany({
+    const announces = await this.prisma.announce.findMany({
       where: { userId },
       orderBy: [
         { refreshDate: { sort: 'desc', nulls: 'last' } },
@@ -463,10 +495,20 @@ export class AnnounceService {
         property: {
           include: {
             images: true,
+            address: { include: { town: { include: { city: true } } } },
           }
-        }
+        },
+        pointUsages: { select: { pointsUsed: true, action: true, usageDate: true } },
       }
     });
+
+    // Agrégats points par annonce (nombre de consommations + total dépensé), utilisés par le
+    // tableau "Mes Annonces" — filtres et KPI de positionnement du client.
+    return announces.map((a) => ({
+      ...a,
+      pointsUsageCount: a.pointUsages.length,
+      pointsUsageTotal: a.pointUsages.reduce((sum, u) => sum + u.pointsUsed, 0),
+    }));
   }
 
   async findByUserPublic(userId: number) {

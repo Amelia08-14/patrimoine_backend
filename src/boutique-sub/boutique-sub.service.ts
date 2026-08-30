@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { OfferPackKind } from '@prisma/client';
+import { OfferPackKind, ContactChannel } from '@prisma/client';
 
 @Injectable()
 export class BoutiqueSubService {
@@ -87,5 +87,58 @@ export class BoutiqueSubService {
     if (sub.status !== 'PENDING') throw new BadRequestException('Déjà traitée');
     await this.prisma.boutiqueSubscription.update({ where: { id }, data: { status: 'REJECTED' } });
     return { success: true };
+  }
+
+  // ── Abonnés à la boutique publique (bouton "S'abonner") ──
+  // Compteur réel, réutilisé dans les statistiques du pro.
+
+  async followBoutique(followerId: number, ownerId: number) {
+    if (followerId === ownerId) throw new BadRequestException('Impossible de vous abonner à votre propre boutique');
+    await this.prisma.boutiqueFollow.upsert({
+      where: { followerId_ownerId: { followerId, ownerId } },
+      create: { followerId, ownerId },
+      update: {},
+    });
+    const count = await this.prisma.boutiqueFollow.count({ where: { ownerId } });
+    return { following: true, count };
+  }
+
+  async unfollowBoutique(followerId: number, ownerId: number) {
+    await this.prisma.boutiqueFollow.deleteMany({ where: { followerId, ownerId } });
+    const count = await this.prisma.boutiqueFollow.count({ where: { ownerId } });
+    return { following: false, count };
+  }
+
+  // Public : nombre d'abonnés d'une boutique, et si `followerId` la suit déjà (facultatif).
+  async getBoutiqueFollowStatus(ownerId: number, followerId?: number) {
+    const [count, isFollowing] = await Promise.all([
+      this.prisma.boutiqueFollow.count({ where: { ownerId } }),
+      followerId
+        ? this.prisma.boutiqueFollow.findUnique({ where: { followerId_ownerId: { followerId, ownerId } } })
+        : Promise.resolve(null),
+    ]);
+    return { count, following: !!isFollowing };
+  }
+
+  // Pour les statistiques du pro : la liste de ses abonnés.
+  async getBoutiqueFollowers(ownerId: number) {
+    return this.prisma.boutiqueFollow.findMany({
+      where: { ownerId },
+      include: { follower: { select: { id: true, firstName: true, lastName: true, imageUrl: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // Clic sur un moyen de contact affiché directement sur la boutique (pas lié à une annonce
+  // précise) — repris dans "Mes statistiques" comme "Contacts via boutique".
+  async trackBoutiqueContact(ownerId: number, channel: string) {
+    const validChannels = Object.values(ContactChannel);
+    if (!validChannels.includes(channel as ContactChannel)) {
+      throw new BadRequestException('Canal de contact invalide');
+    }
+    const click = await this.prisma.contactClick.create({
+      data: { ownerId, channel: channel as ContactChannel, announceId: null },
+    });
+    return { success: true, id: click.id };
   }
 }

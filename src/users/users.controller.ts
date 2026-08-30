@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards, Put, Body, NotFoundException, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Get, Req, UseGuards, Put, Body, Query, NotFoundException, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -222,5 +222,97 @@ export class UsersController {
       boutiqueContacts,
       boutiqueFollowers: followers,
     };
+  }
+
+  // "Mes statistiques" — série temporelle par période, pour les graphiques en bas de la page.
+  // Regroupe des évènements réellement datés (vues, clics, annonces publiées, points utilisés,
+  // contacts boutique, signalements) en buckets jour/semaine/mois entre `from` et `to`.
+  @UseGuards(JwtAuthGuard)
+  @Get('me/stats/timeseries')
+  async getMyStatsTimeseries(
+    @Req() req: any,
+    @Query('from') fromParam?: string,
+    @Query('to') toParam?: string,
+    @Query('granularity') granularityParam?: string,
+  ) {
+    const userId = req.user.userId;
+    const granularity: 'day' | 'week' | 'month' = ['day', 'week', 'month'].includes(granularityParam || '')
+      ? (granularityParam as 'day' | 'week' | 'month')
+      : 'day';
+
+    const to = toParam ? new Date(`${toParam}T23:59:59`) : new Date();
+    const from = fromParam ? new Date(`${fromParam}T00:00:00`) : new Date(to.getTime() - 29 * 24 * 3600 * 1000);
+
+    const bucketKey = (d: Date): string => {
+      if (granularity === 'month') {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }
+      if (granularity === 'week') {
+        const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dow = (date.getDay() + 6) % 7; // lundi = 0
+        date.setDate(date.getDate() - dow);
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      }
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    // Liste complète des buckets sur la période (même vides), pour un axe continu côté graphique.
+    const bucketOrder: string[] = [];
+    const seen = new Set<string>();
+    {
+      const cursor = new Date(from);
+      const step = granularity === 'month' ? 1 : granularity === 'week' ? 7 : 1;
+      while (cursor <= to) {
+        const key = bucketKey(cursor);
+        if (!seen.has(key)) { seen.add(key); bucketOrder.push(key); }
+        if (granularity === 'month') cursor.setMonth(cursor.getMonth() + 1);
+        else cursor.setDate(cursor.getDate() + step);
+      }
+      const lastKey = bucketKey(to);
+      if (!seen.has(lastKey)) { seen.add(lastKey); bucketOrder.push(lastKey); }
+    }
+
+    type Bucket = { date: string; views: number; clicks: number; sale: number; rental: number; boutiqueContacts: number; reports: number; pointsUsed: number };
+    const buckets = new Map<string, Bucket>();
+    for (const key of bucketOrder) {
+      buckets.set(key, { date: key, views: 0, clicks: 0, sale: 0, rental: 0, boutiqueContacts: 0, reports: 0, pointsUsed: 0 });
+    }
+    const bump = (key: string, field: keyof Omit<Bucket, 'date'>, amount = 1) => {
+      const b = buckets.get(key);
+      if (b) b[field] += amount;
+    };
+
+    const range = { gte: from, lte: to };
+    const [views, clicks, boutiqueClicks, reports, announces, pointUsages] = await Promise.all([
+      this.prisma.announceView.findMany({ where: { ownerId: userId, createdAt: range }, select: { createdAt: true } }),
+      this.prisma.contactClick.findMany({ where: { ownerId: userId, announceId: { not: null }, createdAt: range }, select: { createdAt: true } }),
+      this.prisma.contactClick.findMany({ where: { ownerId: userId, announceId: null, createdAt: range }, select: { createdAt: true } }),
+      this.prisma.report.findMany({ where: { ownerId: userId, createdAt: range }, select: { createdAt: true } }),
+      this.prisma.announce.findMany({ where: { userId, createdAt: range }, select: { createdAt: true, type: true } }),
+      this.prisma.pointUsage.findMany({ where: { userId, usageDate: range }, select: { usageDate: true, pointsUsed: true } }),
+    ]);
+
+    views.forEach((v) => bump(bucketKey(v.createdAt), 'views'));
+    clicks.forEach((c) => bump(bucketKey(c.createdAt), 'clicks'));
+    boutiqueClicks.forEach((c) => bump(bucketKey(c.createdAt), 'boutiqueContacts'));
+    reports.forEach((r) => bump(bucketKey(r.createdAt), 'reports'));
+    announces.forEach((a) => bump(bucketKey(a.createdAt), a.type === 'SALE' ? 'sale' : 'rental'));
+    pointUsages.forEach((p) => bump(bucketKey(p.usageDate), 'pointsUsed', p.pointsUsed));
+
+    const series = bucketOrder.map((key) => buckets.get(key)!);
+    const totals = series.reduce(
+      (acc, b) => ({
+        views: acc.views + b.views,
+        clicks: acc.clicks + b.clicks,
+        sale: acc.sale + b.sale,
+        rental: acc.rental + b.rental,
+        boutiqueContacts: acc.boutiqueContacts + b.boutiqueContacts,
+        reports: acc.reports + b.reports,
+        pointsUsed: acc.pointsUsed + b.pointsUsed,
+      }),
+      { views: 0, clicks: 0, sale: 0, rental: 0, boutiqueContacts: 0, reports: 0, pointsUsed: 0 },
+    );
+
+    return { granularity, from: from.toISOString(), to: to.toISOString(), series, totals };
   }
 }

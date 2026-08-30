@@ -26,8 +26,8 @@ export class PointsController {
 
   @Get('history')
   @UseGuards(JwtAuthGuard)
-  getHistory(@Req() req: any) {
-    return this.pointsService.getUserHistory(req.user.userId);
+  getHistory(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.pointsService.getUserHistory(req.user.userId, from, to);
   }
 
   // Actualiser une annonce (1 point)

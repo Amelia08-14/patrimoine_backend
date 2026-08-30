@@ -34,12 +34,16 @@ export class PointsService {
     });
   }
 
-  async getUserHistory(userId: number) {
+  async getUserHistory(userId: number, from?: string, to?: string) {
+    const usageDate: { gte?: Date; lte?: Date } = {};
+    if (from) usageDate.gte = new Date(from);
+    if (to) usageDate.lte = new Date(`${to}T23:59:59`);
+
     return this.prisma.pointUsage.findMany({
-      where: { userId },
+      where: { userId, ...(from || to ? { usageDate } : {}) },
       include: { announce: { select: { id: true, reference: true, title: true } } },
       orderBy: { usageDate: 'desc' },
-      take: 50
+      take: from || to ? undefined : 50,
     });
   }
 
@@ -96,12 +100,21 @@ export class PointsService {
     if (!purchase) throw new NotFoundException('Achat introuvable');
     if (purchase.status !== 'PENDING') throw new BadRequestException('Cet achat a déjà été traité');
 
+    // Valables 1 mois à compter de la validation (promis dans l'UI d'achat) — sans ce reset,
+    // un nouvel achat validé après l'expiration d'un ancien abonnement boutique (qui, lui,
+    // pose sa propre expirationDate sur le même compteur de points) se faisait effacer au
+    // prochain calcul de solde : la date d'expiration restait bloquée dans le passé alors que
+    // les points venaient d'être crédités.
+    const now = new Date();
+    const expiresAt = new Date(now);
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+
     await this.prisma.$transaction([
-      this.prisma.pointPurchase.update({ where: { id: purchaseId }, data: { status: 'VALIDATED', validatedAt: new Date() } }),
+      this.prisma.pointPurchase.update({ where: { id: purchaseId }, data: { status: 'VALIDATED', validatedAt: now } }),
       this.prisma.userPoint.upsert({
         where: { userId: purchase.userId },
-        create: { userId: purchase.userId, currentPoints: purchase.points },
-        update: { currentPoints: { increment: purchase.points } }
+        create: { userId: purchase.userId, currentPoints: purchase.points, expirationDate: expiresAt },
+        update: { currentPoints: { increment: purchase.points }, expirationDate: expiresAt }
       })
     ]);
     return { success: true };

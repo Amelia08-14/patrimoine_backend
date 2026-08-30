@@ -79,6 +79,7 @@ model User {
   contactClicks     ContactClick[]   @relation("ContactClickOwner")
   reportsReceived   Report[]         @relation("ReportedOwner")
   reportsMade       Report[]         @relation("Reporter")
+  announceViews     AnnounceView[]   @relation("AnnounceViewOwner")
 
   @@map("user")
 }
@@ -257,6 +258,7 @@ model Announce {
   messages        Message[]
   contactClicks   ContactClick[]
   reports         Report[]
+  views           AnnounceView[]
 
   @@map("announce")
 }
@@ -278,6 +280,7 @@ model Property {
   commune          String?   // Added field
   mapsLink         String?   // Added field
   videos           String?   @db.Text // JSON string of video paths
+  coverVideoIndex  Int?      // Index dans `videos` de la vidéo choisie comme couverture (sinon la couverture est la photo Image.isMain)
 
   images           Image[]
   propertyType     String?   // Simplified for now, could be a relation
@@ -403,6 +406,24 @@ model ContactClick {
   owner      User           @relation("ContactClickOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@map("contact_click")
+}
+
+// Vue datée d'une annonce (une ligne par consultation de la fiche détail) — permet de tracer
+// l'évolution réelle des consultations dans le temps pour les graphiques de "Mes statistiques".
+// Announce.nbViews reste le compteur cumulé (rapide, affiché partout) ; cette table sert
+// uniquement à reconstituer un historique par période.
+model AnnounceView {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+
+  announceId Int
+  announce   Announce @relation(fields: [announceId], references: [id], onDelete: Cascade)
+
+  ownerId    Int
+  owner      User     @relation("AnnounceViewOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+  @@map("announce_view")
 }
 
 // Signalement d'une annonce (bouton "Signaler un problème"). Compte réel dans les statistiques

@@ -8,7 +8,12 @@ export class AnnounceService {
   constructor(private prisma: PrismaService) {}
 
   async create(userId: number, createAnnounceDto: CreateAnnounceDto, files: Array<Express.Multer.File>) {
-    const { imagesMetadata } = createAnnounceDto;
+    const { imagesMetadata, coverVideoIndex: coverVideoIndexRaw } = createAnnounceDto;
+
+    // Couverture vidéo choisie par le déposant : si présente, aucune photo ne doit être marquée
+    // "isMain" (une seule couverture à la fois, photo OU vidéo).
+    const parsedCoverVideoIndex = coverVideoIndexRaw !== undefined && coverVideoIndexRaw !== '' ? Number(coverVideoIndexRaw) : NaN;
+    const hasCoverVideo = Number.isInteger(parsedCoverVideoIndex) && parsedCoverVideoIndex >= 0;
 
     // Parse image metadata
     let categoryMap: Record<string, string> = {};
@@ -302,6 +307,7 @@ export class AnnounceService {
             mapsLink,
             commune,
             videos: JSON.stringify(videoPaths),
+            coverVideoIndex: hasCoverVideo && parsedCoverVideoIndex < videoPaths.length ? parsedCoverVideoIndex : undefined,
             address: shouldCreateAddress ? {
               create: {
                 street: normalizedAddress,
@@ -332,6 +338,10 @@ export class AnnounceService {
                     if (mainImageMap[file.originalname]) isMain = true;
                 }
 
+                // Une seule couverture à la fois : si une vidéo a été choisie comme couverture,
+                // aucune photo ne doit rester marquée "isMain".
+                if (hasCoverVideo) isMain = false;
+
                 return {
                     url: file.path.replace(/\\/g, '/'),
                     contentType: file.mimetype,
@@ -359,12 +369,8 @@ export class AnnounceService {
   }
 
   async findAll() {
-    return this.prisma.announce.findMany({
+    const announces = await this.prisma.announce.findMany({
       where: { status: AnnounceStatus.VALIDATED },
-      orderBy: [
-        { refreshDate: { sort: 'desc', nulls: 'last' } },
-        { createdAt: 'desc' }
-      ],
       include: {
         user: {
           select: {
@@ -404,6 +410,18 @@ export class AnnounceService {
           }
         }
       }
+    });
+
+    // Une seule échelle "activité la plus récente" : une annonce fraîchement publiée doit
+    // apparaître parmi les plus récentes dès sa mise en ligne, et une annonce actualisée après
+    // sa publication doit repasser devant — pas de priorité figée "actualisées d'abord, peu
+    // importe depuis quand" qui reléguait les nouvelles publications derrière une vieille
+    // actualisation.
+    return announces.sort((a, b) => {
+      const aTime = (a.refreshDate ?? a.createdAt).getTime();
+      const bTime = (b.refreshDate ?? b.createdAt).getTime();
+      if (bTime !== aTime) return bTime - aTime;
+      return b.id - a.id;
     });
   }
 
@@ -445,11 +463,14 @@ export class AnnounceService {
   }
 
   async findOne(id: number) {
-    // Increment view count
-    await this.prisma.announce.update({
-        where: { id },
-        data: { nbViews: { increment: 1 } }
-    });
+    // Increment view count (compteur cumulé) + log daté (historique pour les graphiques de stats)
+    const target = await this.prisma.announce.findUnique({ where: { id }, select: { userId: true } });
+    if (target) {
+      await this.prisma.$transaction([
+        this.prisma.announce.update({ where: { id }, data: { nbViews: { increment: 1 } } }),
+        this.prisma.announceView.create({ data: { announceId: id, ownerId: target.userId } }),
+      ]);
+    }
 
     return this.prisma.announce.findUnique({
       where: { id },

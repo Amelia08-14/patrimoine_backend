@@ -160,6 +160,10 @@ export class CreateAnnounceDto {
 
   @IsString() @IsOptional() imagesMetadata?: string; // JSON String
 
+  // Index (dans le tableau des vidéos envoyées) de la vidéo choisie comme couverture par le
+  // déposant — envoyé en string par le formulaire multipart, absent si la couverture est une photo.
+  @IsString() @IsOptional() coverVideoIndex?: string;
+
   @IsOptional()
   userId?: string;
 }

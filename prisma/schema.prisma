@@ -80,6 +80,7 @@ model User {
   reportsReceived   Report[]         @relation("ReportedOwner")
   reportsMade       Report[]         @relation("Reporter")
   announceViews     AnnounceView[]   @relation("AnnounceViewOwner")
+  notifications     Notification[]
 
   @@map("user")
 }
@@ -387,6 +388,26 @@ model Message {
   announce   Announce? @relation(fields: [announceId], references: [id], onDelete: SetNull)
 
   @@map("message")
+}
+
+// Notification interne à l'utilisateur (cloche du profil) — créée automatiquement par d'autres
+// services (nouveau message reçu, recherche confiée qui correspond à une de vos annonces,
+// annonce validée/rejetée par l'admin, points bientôt expirés...). `link` pointe vers la page
+// pertinente côté front (ex. /profile/messages, /announces/123).
+model Notification {
+  id        Int      @id @default(autoincrement())
+  type      String   // MESSAGE | RESEARCH_MATCH | ANNOUNCE_VALIDATED | ANNOUNCE_REJECTED | POINTS_EXPIRING
+  title     String
+  body      String?  @db.Text
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notification")
 }
 
 // Clic sur un moyen de contact — bouton d'appel/WhatsApp/Telegram/Viber/email d'une annonce,

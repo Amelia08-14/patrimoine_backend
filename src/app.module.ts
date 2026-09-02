@@ -18,6 +18,7 @@ import { PointsModule } from './points/points.module';
 import { BoutiqueSubModule } from './boutique-sub/boutique-sub.module';
 import { ContentModule } from './content/content.module';
 import { OfferPacksModule } from './offer-packs/offer-packs.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { OfferPacksModule } from './offer-packs/offer-packs.module';
     BoutiqueSubModule,
     ContentModule,
     OfferPacksModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnnounceStatus, UserType, AccountStatus, CompanyActivity, TransactionType } from '@prisma/client';
+import { NotificationService } from '../notification/notification.service';
 
 const USER_LIST_SELECT = {
   id: true,
@@ -78,7 +79,10 @@ function poleForActivity(activity: CompanyActivity | null | undefined): string |
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async checkAdmin(userId: number) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -446,10 +450,30 @@ export class AdminService {
   }
 
   async updateAnnounceStatus(announceId: number, status: AnnounceStatus) {
-    return this.prisma.announce.update({
+    const announce = await this.prisma.announce.update({
       where: { id: announceId },
       data: { status },
     });
+
+    if (status === AnnounceStatus.VALIDATED || status === AnnounceStatus.REJECTED) {
+      try {
+        await this.notificationService.create(
+          announce.userId,
+          status === AnnounceStatus.VALIDATED ? 'ANNOUNCE_VALIDATED' : 'ANNOUNCE_REJECTED',
+          status === AnnounceStatus.VALIDATED
+            ? `Votre annonce ${announce.reference} a été validée`
+            : `Votre annonce ${announce.reference} a été refusée`,
+          status === AnnounceStatus.VALIDATED
+            ? "Elle est désormais visible par tous les visiteurs du site."
+            : "Contactez le support pour en connaître la raison.",
+          `/announces/${announce.id}`,
+        );
+      } catch (e) {
+        // Silencieux — ne bloque jamais la mise à jour du statut.
+      }
+    }
+
+    return announce;
   }
 
   // --- Mise en avant "Première page" & suivi KPI ---

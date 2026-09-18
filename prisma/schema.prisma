@@ -167,7 +167,11 @@ model OfferPack {
   kind        OfferPackKind
   key         String
   title       String
+  titleAr     String?
+  titleEn     String?
   description String?       @db.Text
+  descriptionAr String?     @db.Text
+  descriptionEn String?     @db.Text
   price       Int
   points      Int
   order       Int           @default(0)
@@ -615,7 +619,11 @@ model LegalSection {
   id        Int      @id @default(autoincrement())
   page      String   // 'CGU' | 'CONFIDENTIALITE' | 'A_PROPOS'
   title     String
+  titleAr   String?
+  titleEn   String?
   body      String   @db.Text // HTML enrichi (éditeur riche admin)
+  bodyAr    String?  @db.Text
+  bodyEn    String?  @db.Text
   imageUrl  String?  // image d'illustration de la section (ex. page "Qui sommes-nous ?")
   published Boolean  @default(true)
   order     Int      @default(0)
@@ -630,6 +638,8 @@ model LegalSection {
 model UsefulLink {
   id        Int      @id @default(autoincrement())
   title     String
+  titleAr   String?
+  titleEn   String?
   url       String
   order     Int      @default(0)
   published Boolean  @default(true)
@@ -642,7 +652,11 @@ model UsefulLink {
 model FaqItem {
   id        Int      @id @default(autoincrement())
   question  String
+  questionAr String? @db.Text
+  questionEn String? @db.Text
   answer    String   @db.Text
+  answerAr  String?  @db.Text
+  answerEn  String?  @db.Text
   order     Int      @default(0)
   published Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -654,12 +668,19 @@ model FaqItem {
 // Diapositives du hero de la page d'accueil, gérées depuis l'administration. `categoryId`
 // référence un id de REAL_ESTATE_CATEGORIES côté frontend (ex. "RESIDENTIEL") — pas de FK stricte,
 // c'est un simple tag utilisé pour réutiliser le libellé/icône déjà définis pour ce domaine.
+// `link` (ajouté à la demande du client) : URL de renvoi au clic sur la diapositive — vers une
+// page interne (ex. /announces?realEstateCategory=RESIDENTIEL) ou externe, au choix de l'admin.
 model HeroSlide {
   id         Int      @id @default(autoincrement())
   categoryId String?
   imageUrl   String
   title      String?
+  titleAr    String?
+  titleEn    String?
   subtitle   String?
+  subtitleAr String?
+  subtitleEn String?
+  link       String?
   order      Int      @default(0)
   published  Boolean  @default(true)
   createdAt  DateTime @default(now())

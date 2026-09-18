@@ -21,14 +21,23 @@ export class OfferPacksController {
   @UseGuards(JwtAuthGuard)
   async create(
     @Req() req: any,
-    @Body() body: { kind: OfferPackKind; key: string; title: string; description?: string | null; price: number; points: number },
+    @Body() body: {
+      kind: OfferPackKind; key: string;
+      title: string; titleAr?: string | null; titleEn?: string | null;
+      description?: string | null; descriptionAr?: string | null; descriptionEn?: string | null;
+      price: number; points: number;
+    },
   ) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.offerPacksService.create({
       kind: body.kind,
       key: body.key,
       title: body.title,
+      titleAr: body.titleAr,
+      titleEn: body.titleEn,
       description: body.description,
+      descriptionAr: body.descriptionAr,
+      descriptionEn: body.descriptionEn,
       price: Number(body.price),
       points: Number(body.points),
     });
@@ -39,12 +48,20 @@ export class OfferPacksController {
   async update(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: { title?: string; description?: string | null; price?: number; points?: number },
+    @Body() body: {
+      title?: string; titleAr?: string | null; titleEn?: string | null;
+      description?: string | null; descriptionAr?: string | null; descriptionEn?: string | null;
+      price?: number; points?: number;
+    },
   ) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.offerPacksService.update(Number(id), {
       title: body.title,
+      titleAr: body.titleAr,
+      titleEn: body.titleEn,
       description: body.description,
+      descriptionAr: body.descriptionAr,
+      descriptionEn: body.descriptionEn,
       price: body.price !== undefined ? Number(body.price) : undefined,
       points: body.points !== undefined ? Number(body.points) : undefined,
     });

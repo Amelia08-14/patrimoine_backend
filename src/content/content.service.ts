@@ -35,11 +35,18 @@ export class ContentService {
     });
   }
 
-  async createLegalSection(page: string, title: string, body: string, order: number, imageUrl?: string) {
-    return this.prisma.legalSection.create({ data: { page, title, body, order, imageUrl } });
+  async createLegalSection(data: {
+    page: string; title: string; titleAr?: string; titleEn?: string;
+    body: string; bodyAr?: string; bodyEn?: string; order: number; imageUrl?: string;
+  }) {
+    return this.prisma.legalSection.create({ data });
   }
 
-  async updateLegalSection(id: number, data: { title?: string; body?: string; order?: number; published?: boolean; imageUrl?: string | null }) {
+  async updateLegalSection(id: number, data: {
+    title?: string; titleAr?: string | null; titleEn?: string | null;
+    body?: string; bodyAr?: string | null; bodyEn?: string | null;
+    order?: number; published?: boolean; imageUrl?: string | null;
+  }) {
     return this.prisma.legalSection.update({ where: { id }, data });
   }
 
@@ -56,11 +63,18 @@ export class ContentService {
     });
   }
 
-  async createFaqItem(question: string, answer: string, order: number) {
-    return this.prisma.faqItem.create({ data: { question, answer, order } });
+  async createFaqItem(data: {
+    question: string; questionAr?: string; questionEn?: string;
+    answer: string; answerAr?: string; answerEn?: string; order: number;
+  }) {
+    return this.prisma.faqItem.create({ data });
   }
 
-  async updateFaqItem(id: number, data: { question?: string; answer?: string; order?: number; published?: boolean }) {
+  async updateFaqItem(id: number, data: {
+    question?: string; questionAr?: string | null; questionEn?: string | null;
+    answer?: string; answerAr?: string | null; answerEn?: string | null;
+    order?: number; published?: boolean;
+  }) {
     const item = await this.prisma.faqItem.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Question introuvable');
     return this.prisma.faqItem.update({ where: { id }, data });
@@ -160,11 +174,21 @@ export class ContentService {
     });
   }
 
-  async createHeroSlide(data: { categoryId?: string | null; imageUrl: string; title?: string | null; subtitle?: string | null; order: number }) {
+  async createHeroSlide(data: {
+    categoryId?: string | null; imageUrl: string;
+    title?: string | null; titleAr?: string | null; titleEn?: string | null;
+    subtitle?: string | null; subtitleAr?: string | null; subtitleEn?: string | null;
+    link?: string | null; order: number;
+  }) {
     return this.prisma.heroSlide.create({ data });
   }
 
-  async updateHeroSlide(id: number, data: { categoryId?: string | null; imageUrl?: string; title?: string | null; subtitle?: string | null; order?: number; published?: boolean }) {
+  async updateHeroSlide(id: number, data: {
+    categoryId?: string | null; imageUrl?: string;
+    title?: string | null; titleAr?: string | null; titleEn?: string | null;
+    subtitle?: string | null; subtitleAr?: string | null; subtitleEn?: string | null;
+    link?: string | null; order?: number; published?: boolean;
+  }) {
     const item = await this.prisma.heroSlide.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Slide introuvable');
     return this.prisma.heroSlide.update({ where: { id }, data });
@@ -183,11 +207,14 @@ export class ContentService {
     });
   }
 
-  async createUsefulLink(title: string, url: string, order: number) {
-    return this.prisma.usefulLink.create({ data: { title, url, order } });
+  async createUsefulLink(data: { title: string; titleAr?: string; titleEn?: string; url: string; order: number }) {
+    return this.prisma.usefulLink.create({ data });
   }
 
-  async updateUsefulLink(id: number, data: { title?: string; url?: string; order?: number; published?: boolean }) {
+  async updateUsefulLink(id: number, data: {
+    title?: string; titleAr?: string | null; titleEn?: string | null;
+    url?: string; order?: number; published?: boolean;
+  }) {
     const item = await this.prisma.usefulLink.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Lien introuvable');
     return this.prisma.usefulLink.update({ where: { id }, data });

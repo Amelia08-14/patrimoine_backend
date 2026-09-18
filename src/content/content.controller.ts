@@ -106,17 +106,21 @@ export class ContentController {
   async createLegalSection(
     @Req() req: any,
     @Param('page') page: string,
-    @Body() body: { title: string; body: string; order?: string },
+    @Body() body: { title: string; titleAr?: string; titleEn?: string; body: string; bodyAr?: string; bodyEn?: string; order?: string },
     @UploadedFile() image?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.contentService.createLegalSection(
-      page.toUpperCase(),
-      body.title,
-      body.body,
-      body.order ? Number(body.order) : 0,
-      image ? `/uploads/legal/${image.filename}` : undefined,
-    );
+    return this.contentService.createLegalSection({
+      page: page.toUpperCase(),
+      title: body.title,
+      titleAr: body.titleAr,
+      titleEn: body.titleEn,
+      body: body.body,
+      bodyAr: body.bodyAr,
+      bodyEn: body.bodyEn,
+      order: body.order ? Number(body.order) : 0,
+      imageUrl: image ? `/uploads/legal/${image.filename}` : undefined,
+    });
   }
 
   @Put('admin/content/legal/section/:id')
@@ -133,13 +137,21 @@ export class ContentController {
   async updateLegalSection(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: { title?: string; body?: string; order?: string; published?: string; removeImage?: string },
+    @Body() body: {
+      title?: string; titleAr?: string; titleEn?: string;
+      body?: string; bodyAr?: string; bodyEn?: string;
+      order?: string; published?: string; removeImage?: string;
+    },
     @UploadedFile() image?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.updateLegalSection(Number(id), {
       ...(body.title !== undefined ? { title: body.title } : {}),
+      ...(body.titleAr !== undefined ? { titleAr: body.titleAr || null } : {}),
+      ...(body.titleEn !== undefined ? { titleEn: body.titleEn || null } : {}),
       ...(body.body !== undefined ? { body: body.body } : {}),
+      ...(body.bodyAr !== undefined ? { bodyAr: body.bodyAr || null } : {}),
+      ...(body.bodyEn !== undefined ? { bodyEn: body.bodyEn || null } : {}),
       ...(body.order !== undefined ? { order: Number(body.order) } : {}),
       ...(body.published !== undefined ? { published: body.published === 'true' } : {}),
       ...(image ? { imageUrl: `/uploads/legal/${image.filename}` } : {}),
@@ -163,14 +175,26 @@ export class ContentController {
 
   @Post('admin/content/faq')
   @UseGuards(JwtAuthGuard)
-  async createFaqItem(@Req() req: any, @Body() body: { question: string; answer: string; order?: number }) {
+  async createFaqItem(@Req() req: any, @Body() body: { question: string; questionAr?: string; questionEn?: string; answer: string; answerAr?: string; answerEn?: string; order?: number }) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.contentService.createFaqItem(body.question, body.answer, body.order ?? 0);
+    return this.contentService.createFaqItem({
+      question: body.question,
+      questionAr: body.questionAr,
+      questionEn: body.questionEn,
+      answer: body.answer,
+      answerAr: body.answerAr,
+      answerEn: body.answerEn,
+      order: body.order ?? 0,
+    });
   }
 
   @Put('admin/content/faq/:id')
   @UseGuards(JwtAuthGuard)
-  async updateFaqItem(@Req() req: any, @Param('id') id: string, @Body() body: { question?: string; answer?: string; order?: number; published?: boolean }) {
+  async updateFaqItem(@Req() req: any, @Param('id') id: string, @Body() body: {
+    question?: string; questionAr?: string; questionEn?: string;
+    answer?: string; answerAr?: string; answerEn?: string;
+    order?: number; published?: boolean;
+  }) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.updateFaqItem(Number(id), body);
   }
@@ -297,7 +321,10 @@ export class ContentController {
   }))
   async createHeroSlide(
     @Req() req: any,
-    @Body() body: { categoryId?: string; title?: string; subtitle?: string; order?: string },
+    @Body() body: {
+      categoryId?: string; title?: string; titleAr?: string; titleEn?: string;
+      subtitle?: string; subtitleAr?: string; subtitleEn?: string; link?: string; order?: string;
+    },
     @UploadedFile() image?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
@@ -306,7 +333,12 @@ export class ContentController {
       categoryId: body.categoryId || null,
       imageUrl: `/uploads/slides/${image.filename}`,
       title: body.title || null,
+      titleAr: body.titleAr || null,
+      titleEn: body.titleEn || null,
       subtitle: body.subtitle || null,
+      subtitleAr: body.subtitleAr || null,
+      subtitleEn: body.subtitleEn || null,
+      link: body.link || null,
       order: body.order ? Number(body.order) : 0,
     });
   }
@@ -325,14 +357,23 @@ export class ContentController {
   async updateHeroSlide(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: { categoryId?: string; title?: string; subtitle?: string; order?: string; published?: string },
+    @Body() body: {
+      categoryId?: string; title?: string; titleAr?: string; titleEn?: string;
+      subtitle?: string; subtitleAr?: string; subtitleEn?: string; link?: string;
+      order?: string; published?: string;
+    },
     @UploadedFile() image?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.updateHeroSlide(Number(id), {
       ...(body.categoryId !== undefined ? { categoryId: body.categoryId || null } : {}),
       ...(body.title !== undefined ? { title: body.title || null } : {}),
+      ...(body.titleAr !== undefined ? { titleAr: body.titleAr || null } : {}),
+      ...(body.titleEn !== undefined ? { titleEn: body.titleEn || null } : {}),
       ...(body.subtitle !== undefined ? { subtitle: body.subtitle || null } : {}),
+      ...(body.subtitleAr !== undefined ? { subtitleAr: body.subtitleAr || null } : {}),
+      ...(body.subtitleEn !== undefined ? { subtitleEn: body.subtitleEn || null } : {}),
+      ...(body.link !== undefined ? { link: body.link || null } : {}),
       ...(body.order !== undefined ? { order: Number(body.order) } : {}),
       ...(body.published !== undefined ? { published: body.published === 'true' } : {}),
       ...(image ? { imageUrl: `/uploads/slides/${image.filename}` } : {}),
@@ -355,14 +396,22 @@ export class ContentController {
 
   @Post('admin/content/useful-links')
   @UseGuards(JwtAuthGuard)
-  async createUsefulLink(@Req() req: any, @Body() body: { title: string; url: string; order?: number }) {
+  async createUsefulLink(@Req() req: any, @Body() body: { title: string; titleAr?: string; titleEn?: string; url: string; order?: number }) {
     await this.adminService.checkAdmin(req.user.userId);
-    return this.contentService.createUsefulLink(body.title, body.url, body.order ?? 0);
+    return this.contentService.createUsefulLink({
+      title: body.title,
+      titleAr: body.titleAr,
+      titleEn: body.titleEn,
+      url: body.url,
+      order: body.order ?? 0,
+    });
   }
 
   @Put('admin/content/useful-links/:id')
   @UseGuards(JwtAuthGuard)
-  async updateUsefulLink(@Req() req: any, @Param('id') id: string, @Body() body: { title?: string; url?: string; order?: number; published?: boolean }) {
+  async updateUsefulLink(@Req() req: any, @Param('id') id: string, @Body() body: {
+    title?: string; titleAr?: string; titleEn?: string; url?: string; order?: number; published?: boolean;
+  }) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.updateUsefulLink(Number(id), body);
   }

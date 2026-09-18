@@ -16,7 +16,12 @@ export class OfferPacksService {
     return this.prisma.offerPack.findUnique({ where: { kind_key: { kind, key } } });
   }
 
-  async create(data: { kind: OfferPackKind; key: string; title: string; description?: string | null; price: number; points: number }) {
+  async create(data: {
+    kind: OfferPackKind; key: string;
+    title: string; titleAr?: string | null; titleEn?: string | null;
+    description?: string | null; descriptionAr?: string | null; descriptionEn?: string | null;
+    price: number; points: number;
+  }) {
     if (!data.kind || !Object.values(OfferPackKind).includes(data.kind)) {
       throw new BadRequestException('Type d\'offre invalide (POINTS ou BOUTIQUE)');
     }
@@ -38,7 +43,11 @@ export class OfferPacksService {
         kind: data.kind,
         key,
         title: data.title,
+        titleAr: data.titleAr || null,
+        titleEn: data.titleEn || null,
         description: data.description || null,
+        descriptionAr: data.descriptionAr || null,
+        descriptionEn: data.descriptionEn || null,
         price: data.price,
         points: data.points,
         order: (maxOrder._max.order ?? -1) + 1,
@@ -46,7 +55,11 @@ export class OfferPacksService {
     });
   }
 
-  async update(id: number, data: { title?: string; description?: string | null; price?: number; points?: number }) {
+  async update(id: number, data: {
+    title?: string; titleAr?: string | null; titleEn?: string | null;
+    description?: string | null; descriptionAr?: string | null; descriptionEn?: string | null;
+    price?: number; points?: number;
+  }) {
     const pack = await this.prisma.offerPack.findUnique({ where: { id } });
     if (!pack) throw new NotFoundException('Offre introuvable');
 

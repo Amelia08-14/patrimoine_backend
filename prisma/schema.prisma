@@ -680,6 +680,15 @@ model HeroSlide {
   subtitle   String?
   subtitleAr String?
   subtitleEn String?
+  buttonLabel   String?
+  buttonLabelAr String?
+  buttonLabelEn String?
+  showButton1   Boolean  @default(true)
+  button2Label   String?
+  button2LabelAr String?
+  button2LabelEn String?
+  button2Link    String?
+  showButton2    Boolean  @default(true)
   link       String?
   order      Int      @default(0)
   published  Boolean  @default(true)
@@ -692,6 +701,8 @@ model HeroSlide {
 model Partner {
   id          Int              @id @default(autoincrement())
   name        String
+  nameAr      String?
+  nameEn      String?
   logoUrl     String?
   websiteUrl  String?
   category    PartnerCategory?

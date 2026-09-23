@@ -77,7 +77,7 @@ export class EntrustedResearchService {
       if (!r.towns) continue;
       try {
         const parsed: unknown[] = JSON.parse(r.towns);
-        const ids = parsed.map((id) => Number(id)).filter((id) => !isNaN(id));
+        const ids = [...new Set(parsed.map((id) => Number(id)).filter((id) => !isNaN(id)))];
         townIdsByResearch.set(r.id, ids);
         ids.forEach((id) => allTownIds.add(id));
       } catch {}

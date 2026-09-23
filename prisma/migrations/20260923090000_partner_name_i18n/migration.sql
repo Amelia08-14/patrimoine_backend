@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `partner` ADD COLUMN `nameAr` VARCHAR(191) NULL,
+    ADD COLUMN `nameEn` VARCHAR(191) NULL;

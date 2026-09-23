@@ -97,11 +97,11 @@ export class ContentService {
     });
   }
 
-  async createPartner(data: { name: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory; subCategory?: CompanyActivity; order: number }) {
+  async createPartner(data: { name: string; nameAr?: string; nameEn?: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory; subCategory?: CompanyActivity; order: number }) {
     return this.prisma.partner.create({ data });
   }
 
-  async updatePartner(id: number, data: { name?: string; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory | null; subCategory?: CompanyActivity | null; order?: number; published?: boolean }) {
+  async updatePartner(id: number, data: { name?: string; nameAr?: string | null; nameEn?: string | null; logoUrl?: string; websiteUrl?: string; category?: PartnerCategory | null; subCategory?: CompanyActivity | null; order?: number; published?: boolean }) {
     const item = await this.prisma.partner.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('Partenaire introuvable');
     return this.prisma.partner.update({ where: { id }, data });
@@ -178,6 +178,9 @@ export class ContentService {
     categoryId?: string | null; imageUrl: string;
     title?: string | null; titleAr?: string | null; titleEn?: string | null;
     subtitle?: string | null; subtitleAr?: string | null; subtitleEn?: string | null;
+    buttonLabel?: string | null; buttonLabelAr?: string | null; buttonLabelEn?: string | null;
+    showButton1?: boolean; button2Label?: string | null; button2LabelAr?: string | null; button2LabelEn?: string | null;
+    button2Link?: string | null; showButton2?: boolean;
     link?: string | null; order: number;
   }) {
     return this.prisma.heroSlide.create({ data });
@@ -187,6 +190,9 @@ export class ContentService {
     categoryId?: string | null; imageUrl?: string;
     title?: string | null; titleAr?: string | null; titleEn?: string | null;
     subtitle?: string | null; subtitleAr?: string | null; subtitleEn?: string | null;
+    buttonLabel?: string | null; buttonLabelAr?: string | null; buttonLabelEn?: string | null;
+    showButton1?: boolean; button2Label?: string | null; button2LabelAr?: string | null; button2LabelEn?: string | null;
+    button2Link?: string | null; showButton2?: boolean;
     link?: string | null; order?: number; published?: boolean;
   }) {
     const item = await this.prisma.heroSlide.findUnique({ where: { id } });

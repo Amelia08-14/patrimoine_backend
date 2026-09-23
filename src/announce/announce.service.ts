@@ -381,6 +381,7 @@ export class AnnounceService {
             phone: true,
             companyName: true,
             imageUrl: true,
+            agencyLogoUrl: true,
             userType: true
           }
         },
@@ -547,6 +548,7 @@ export class AnnounceService {
             lastName: true,
             companyName: true,
             userType: true,
+            imageUrl: true,
             agencyLogoUrl: true,
             phone: true,
           }

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE `hero_slide` ADD COLUMN `showButton1` BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN `button2Label` VARCHAR(191) NULL,
+    ADD COLUMN `button2LabelAr` VARCHAR(191) NULL,
+    ADD COLUMN `button2LabelEn` VARCHAR(191) NULL,
+    ADD COLUMN `button2Link` VARCHAR(191) NULL,
+    ADD COLUMN `showButton2` BOOLEAN NOT NULL DEFAULT true;

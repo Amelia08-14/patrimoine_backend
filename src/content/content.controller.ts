@@ -226,12 +226,14 @@ export class ContentController {
   }))
   async createPartner(
     @Req() req: any,
-    @Body() body: { name: string; websiteUrl?: string; category?: PartnerCategory; subCategory?: CompanyActivity; order?: string },
+    @Body() body: { name: string; nameAr?: string; nameEn?: string; websiteUrl?: string; category?: PartnerCategory; subCategory?: CompanyActivity; order?: string },
     @UploadedFile() logo?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.createPartner({
       name: body.name,
+      nameAr: body.nameAr || undefined,
+      nameEn: body.nameEn || undefined,
       websiteUrl: body.websiteUrl,
       category: body.category || undefined,
       subCategory: body.subCategory || undefined,
@@ -254,12 +256,14 @@ export class ContentController {
   async updatePartner(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: { name?: string; websiteUrl?: string; category?: PartnerCategory | ''; subCategory?: CompanyActivity | ''; order?: string; published?: string },
+    @Body() body: { name?: string; nameAr?: string; nameEn?: string; websiteUrl?: string; category?: PartnerCategory | ''; subCategory?: CompanyActivity | ''; order?: string; published?: string },
     @UploadedFile() logo?: Express.Multer.File,
   ) {
     await this.adminService.checkAdmin(req.user.userId);
     return this.contentService.updatePartner(Number(id), {
       name: body.name,
+      nameAr: body.nameAr !== undefined ? (body.nameAr || null) : undefined,
+      nameEn: body.nameEn !== undefined ? (body.nameEn || null) : undefined,
       websiteUrl: body.websiteUrl,
       category: body.category !== undefined ? (body.category || null) : undefined,
       subCategory: body.subCategory !== undefined ? (body.subCategory || null) : undefined,
@@ -323,7 +327,7 @@ export class ContentController {
     @Req() req: any,
     @Body() body: {
       categoryId?: string; title?: string; titleAr?: string; titleEn?: string;
-      subtitle?: string; subtitleAr?: string; subtitleEn?: string; link?: string; order?: string;
+      subtitle?: string; subtitleAr?: string; subtitleEn?: string; buttonLabel?: string; buttonLabelAr?: string; buttonLabelEn?: string; showButton1?: string; button2Label?: string; button2LabelAr?: string; button2LabelEn?: string; button2Link?: string; showButton2?: string; link?: string; order?: string;
     },
     @UploadedFile() image?: Express.Multer.File,
   ) {
@@ -338,6 +342,15 @@ export class ContentController {
       subtitle: body.subtitle || null,
       subtitleAr: body.subtitleAr || null,
       subtitleEn: body.subtitleEn || null,
+      buttonLabel: body.buttonLabel || null,
+      buttonLabelAr: body.buttonLabelAr || null,
+      buttonLabelEn: body.buttonLabelEn || null,
+      showButton1: body.showButton1 !== 'false',
+      button2Label: body.button2Label || null,
+      button2LabelAr: body.button2LabelAr || null,
+      button2LabelEn: body.button2LabelEn || null,
+      button2Link: body.button2Link || null,
+      showButton2: body.showButton2 !== 'false',
       link: body.link || null,
       order: body.order ? Number(body.order) : 0,
     });
@@ -359,7 +372,7 @@ export class ContentController {
     @Param('id') id: string,
     @Body() body: {
       categoryId?: string; title?: string; titleAr?: string; titleEn?: string;
-      subtitle?: string; subtitleAr?: string; subtitleEn?: string; link?: string;
+      subtitle?: string; subtitleAr?: string; subtitleEn?: string; buttonLabel?: string; buttonLabelAr?: string; buttonLabelEn?: string; showButton1?: string; button2Label?: string; button2LabelAr?: string; button2LabelEn?: string; button2Link?: string; showButton2?: string; link?: string;
       order?: string; published?: string;
     },
     @UploadedFile() image?: Express.Multer.File,
@@ -373,6 +386,15 @@ export class ContentController {
       ...(body.subtitle !== undefined ? { subtitle: body.subtitle || null } : {}),
       ...(body.subtitleAr !== undefined ? { subtitleAr: body.subtitleAr || null } : {}),
       ...(body.subtitleEn !== undefined ? { subtitleEn: body.subtitleEn || null } : {}),
+      ...(body.buttonLabel !== undefined ? { buttonLabel: body.buttonLabel || null } : {}),
+      ...(body.buttonLabelAr !== undefined ? { buttonLabelAr: body.buttonLabelAr || null } : {}),
+      ...(body.buttonLabelEn !== undefined ? { buttonLabelEn: body.buttonLabelEn || null } : {}),
+      ...(body.showButton1 !== undefined ? { showButton1: body.showButton1 !== 'false' } : {}),
+      ...(body.button2Label !== undefined ? { button2Label: body.button2Label || null } : {}),
+      ...(body.button2LabelAr !== undefined ? { button2LabelAr: body.button2LabelAr || null } : {}),
+      ...(body.button2LabelEn !== undefined ? { button2LabelEn: body.button2LabelEn || null } : {}),
+      ...(body.button2Link !== undefined ? { button2Link: body.button2Link || null } : {}),
+      ...(body.showButton2 !== undefined ? { showButton2: body.showButton2 !== 'false' } : {}),
       ...(body.link !== undefined ? { link: body.link || null } : {}),
       ...(body.order !== undefined ? { order: Number(body.order) } : {}),
       ...(body.published !== undefined ? { published: body.published === 'true' } : {}),

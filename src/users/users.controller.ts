@@ -130,6 +130,9 @@ export class UsersController {
         address: fullAddress,
         townId: resolvedTownId,
         companyName: body.companyName,
+        // Nom de l'entreprise en arabe / anglais : chaîne vide = effacer (null)
+        ...(body.companyNameAr !== undefined && { companyNameAr: body.companyNameAr || null }),
+        ...(body.companyNameEn !== undefined && { companyNameEn: body.companyNameEn || null }),
         commercialRegister: body.commercialRegister,
         nif: body.nif,
         nis: body.nis,
@@ -150,6 +153,8 @@ export class UsersController {
         lastName: true,
         userType: true,
         companyName: true,
+        companyNameAr: true,
+        companyNameEn: true,
         companyActivity: true,
         agencyLogoUrl: true,
         phone: true,

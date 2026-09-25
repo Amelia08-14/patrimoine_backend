@@ -191,6 +191,8 @@ export class AuthService {
         lastName: user.lastName,
         userType: user.userType,
         companyName: user.companyName,
+        companyNameAr: user.companyNameAr,
+        companyNameEn: user.companyNameEn,
         companyActivity: user.companyActivity,
         agencyLogoUrl: user.agencyLogoUrl,
         isProfileComplete,

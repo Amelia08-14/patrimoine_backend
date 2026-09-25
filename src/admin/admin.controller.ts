@@ -1,12 +1,24 @@
-import { Controller, Get, Patch, Param, Body, UseGuards, Req, Put, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, UseGuards, Req, Put, Delete, Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AnnounceStatus, AccountStatus, CompanyActivity } from '@prisma/client';
 import { AdminService } from './admin.service';
+import { TitleTranslationService } from '../announce/title-translation.service';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly titleTranslation: TitleTranslationService,
+  ) {}
+
+  /** Traduit (fr/ar/en) les titres des annonces existantes qui n'ont pas encore de traduction. */
+  @Post('announces/translate-titles')
+  async translateMissingTitles(@Req() req: any, @Query('limit') limit?: string) {
+    await this.adminService.checkAdmin(req.user.userId);
+    const n = Math.min(Math.max(Number(limit) || 100, 1), 500);
+    return this.titleTranslation.backfillMissing(n);
+  }
 
   @Get('dashboard-stats')
   async getDashboardStats(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {

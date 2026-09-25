@@ -2,10 +2,11 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnounceDto } from './dto/create-announce.dto';
 import { AnnounceStatus, TransactionType, ContactChannel } from '@prisma/client';
+import { TitleTranslationService } from './title-translation.service';
 
 @Injectable()
 export class AnnounceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private titleTranslation: TitleTranslationService) {}
 
   async create(userId: number, createAnnounceDto: CreateAnnounceDto, files: Array<Express.Multer.File>) {
     const { imagesMetadata, coverVideoIndex: coverVideoIndexRaw } = createAnnounceDto;
@@ -361,6 +362,8 @@ export class AnnounceService {
         }
       }
     });
+    // Correction + traduction (fr/ar/en) du titre, en arrière-plan : ne retarde ni ne bloque la création.
+    this.titleTranslation.scheduleForAnnounce(announce.id, announce.title);
     return announce;
     } catch (error) {
         console.error("Error creating announce:", error);
@@ -380,6 +383,8 @@ export class AnnounceService {
             email: true,
             phone: true,
             companyName: true,
+            companyNameAr: true,
+            companyNameEn: true,
             imageUrl: true,
             agencyLogoUrl: true,
             userType: true
@@ -476,7 +481,7 @@ export class AnnounceService {
     return this.prisma.announce.findUnique({
       where: { id },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, companyName: true, imageUrl: true, agencyLogoUrl: true, userType: true } },
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, companyName: true, companyNameAr: true, companyNameEn: true, imageUrl: true, agencyLogoUrl: true, userType: true } },
         property: {
           include: {
             images: true,
@@ -547,6 +552,8 @@ export class AnnounceService {
             firstName: true,
             lastName: true,
             companyName: true,
+            companyNameAr: true,
+            companyNameEn: true,
             userType: true,
             imageUrl: true,
             agencyLogoUrl: true,

@@ -363,7 +363,7 @@ export class AnnounceService {
       }
     });
     // Correction + traduction (fr/ar/en) du titre, en arrière-plan : ne retarde ni ne bloque la création.
-    this.titleTranslation.scheduleForAnnounce(announce.id, announce.title);
+    this.titleTranslation.scheduleForAnnounce(announce.id, announce.title, announce.shortDescription);
     return announce;
     } catch (error) {
         console.error("Error creating announce:", error);

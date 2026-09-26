@@ -239,7 +239,9 @@ model Announce {
   title           String?   // Added title (français corrigé ; repli des autres langues)
   titleAr         String?   // traduction automatique (voir title-translation.service.ts)
   titleEn         String?
-  shortDescription String?  // Added short description
+  shortDescription String?  // Added short description (français corrigé ; repli des autres langues)
+  shortDescriptionAr String? @db.Text // traduction automatique (title-translation.service.ts)
+  shortDescriptionEn String? @db.Text
   status          AnnounceStatus
   type            TransactionType
   price           Float     // mapped from 'amount'

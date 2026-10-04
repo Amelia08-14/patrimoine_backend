@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEntrustedResearchDto } from './dto/create-entrusted-research.dto';
 import { NotificationService } from '../notification/notification.service';
@@ -54,6 +54,16 @@ export class EntrustedResearchService {
     return research;
   }
 
+  // Champs personnels du demandeur : jamais exposés par les routes publiques (liste /demandes, fiche).
+  private stripPii<T extends Record<string, any>>(r: T) {
+    const { email, phone, address, lastName, ...safe } = r as any;
+    return safe;
+  }
+
+  async count() {
+    return { count: await this.prisma.entrustedResearch.count() };
+  }
+
   async findAll(userId?: number) {
     const researches = await this.prisma.entrustedResearch.findMany({
       where: userId ? { userId } : undefined,
@@ -64,7 +74,51 @@ export class EntrustedResearchService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    const enriched = await this.enrich(researches);
+    // Liste publique : sans coordonnées personnelles. Le demandeur voit tout dans « mes recherches ».
+    return userId ? enriched : enriched.map((r) => this.stripPii(r));
+  }
 
+  async findOnePublic(id: number) {
+    const research = await this.prisma.entrustedResearch.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, firstName: true, lastName: true, companyName: true } } },
+    });
+    if (!research) throw new NotFoundException('Demande introuvable');
+    const [enriched] = await this.enrich([research]);
+    return { ...this.stripPii(enriched), ownerId: research.userId };
+  }
+
+  // Adresse e-mail du demandeur, réservée aux utilisateurs connectés (action « Envoyer un mail »).
+  async getContactEmail(id: number) {
+    const r = await this.prisma.entrustedResearch.findUnique({
+      where: { id },
+      select: { email: true, user: { select: { email: true } } },
+    });
+    if (!r) throw new NotFoundException('Demande introuvable');
+    return { email: r.email || r.user?.email || null };
+  }
+
+  // « Demander le contact » : prévient le demandeur par message + notification, sans révéler ses coordonnées.
+  async requestContact(senderId: number, id: number) {
+    const r = await this.prisma.entrustedResearch.findUnique({ where: { id }, select: { userId: true } });
+    if (!r) throw new NotFoundException('Demande introuvable');
+    if (!r.userId) throw new BadRequestException("Le demandeur n'a pas de compte : contactez-le par mail");
+    if (r.userId === senderId) throw new BadRequestException('Ceci est votre propre demande');
+    const sender = await this.prisma.user.findUnique({
+      where: { id: senderId },
+      select: { firstName: true, lastName: true, companyName: true, phone: true },
+    });
+    const who = sender?.companyName || [sender?.firstName, sender?.lastName].filter(Boolean).join(' ') || 'Un utilisateur';
+    const content = `${who} souhaite obtenir vos coordonnées au sujet de votre recherche n°${id}.${sender?.phone ? ` Vous pouvez le joindre au ${sender.phone}.` : ''}`;
+    await this.prisma.message.create({ data: { senderId, receiverId: r.userId, content } });
+    try {
+      await this.notificationService.create(r.userId, 'MESSAGE', 'Demande de contact pour votre recherche', content.slice(0, 140), '/profile/messages');
+    } catch {}
+    return { success: true };
+  }
+
+  private async enrich(researches: any[]) {
     const cityIds = [...new Set(researches.map((r) => r.cityId).filter((id): id is number => !!id))];
     const cities = cityIds.length
       ? await this.prisma.city.findMany({ where: { id: { in: cityIds } } })

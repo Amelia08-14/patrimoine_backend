@@ -754,3 +754,34 @@ model PartnerApplication {
 
   @@map("partner_application")
 }
+
+// Publicités du site (géré depuis /admin/ads) : colonnes latérales, bandeaux inter-sections et bandeau haut
+// de page, par page (accueil, annonces, demandes). `placements` / `pages` : listes séparées par des virgules.
+model Advertisement {
+  id          Int       @id @default(autoincrement())
+  name        String    // libellé interne (admin)
+  imageUrl    String
+  link        String?
+  title       String?
+  titleAr     String?
+  titleEn     String?
+  subtitle    String?
+  subtitleAr  String?
+  subtitleEn  String?
+  buttonLabel   String?
+  buttonLabelAr String?
+  buttonLabelEn String?
+  placements  String    @default("SIDEBAR,STRIP,BANNER") // SIDEBAR | STRIP | BANNER
+  pages       String    @default("HOME,ANNOUNCES,DEMANDES") // HOME | ANNOUNCES | DEMANDES
+  categories  String    @default("") // catégories ciblées (RESIDENTIEL, INDUSTRIEL…) ; vide = toutes
+  isActive    Boolean   @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  order       Int       @default(0)
+  views       Int       @default(0)
+  clicks      Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("advertisement")
+}

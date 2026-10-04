@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, ParseIntPipe, UseGuards, Request } from '@nestjs/common';
 import { EntrustedResearchService } from './entrusted-research.service';
 import { CreateEntrustedResearchDto } from './dto/create-entrusted-research.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,5 +22,27 @@ export class EntrustedResearchController {
   @Get('mine')
   findMine(@Request() req: any) {
     return this.service.findAll(req.user.userId);
+  }
+
+  @Get('count')
+  count() {
+    return this.service.count();
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findOnePublic(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/email')
+  email(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getContactEmail(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/contact-request')
+  contactRequest(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.service.requestContact(req.user.userId, id);
   }
 }

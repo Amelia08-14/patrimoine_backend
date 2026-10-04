@@ -17,6 +17,7 @@ import { LocationModule } from './location/location.module';
 import { PointsModule } from './points/points.module';
 import { BoutiqueSubModule } from './boutique-sub/boutique-sub.module';
 import { ContentModule } from './content/content.module';
+import { AdsModule } from './ads/ads.module';
 import { OfferPacksModule } from './offer-packs/offer-packs.module';
 import { NotificationModule } from './notification/notification.module';
 
@@ -39,6 +40,7 @@ import { NotificationModule } from './notification/notification.module';
     PointsModule,
     BoutiqueSubModule,
     ContentModule,
+    AdsModule,
     OfferPacksModule,
     NotificationModule,
   ],

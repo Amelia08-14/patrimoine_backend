@@ -41,7 +41,10 @@ export class PointsService {
 
     return this.prisma.pointUsage.findMany({
       where: { userId, ...(from || to ? { usageDate } : {}) },
-      include: { announce: { select: { id: true, reference: true, title: true } } },
+      include: {
+        announce: { select: { id: true, reference: true, title: true } },
+        research: { select: { id: true, realEstateType: true, propertyType: true } },
+      },
       orderBy: { usageDate: 'desc' },
       take: from || to ? undefined : 50,
     });
@@ -61,6 +64,22 @@ export class PointsService {
       this.prisma.pointUsage.create({ data: { userId, announceId, pointsUsed: 1, action: 'BOOST' } })
     ]);
     return { success: true, message: 'Annonce actualisée avec succès' };
+  }
+
+  // 1 point → actualiser une recherche confiée (refreshDate = now, remonte en tête de /demandes)
+  async boostResearch(userId: number, researchId: number) {
+    const research = await this.prisma.entrustedResearch.findFirst({ where: { id: researchId, userId } });
+    if (!research) throw new NotFoundException('Recherche introuvable');
+
+    const balance = await this.getBalance(userId);
+    if (balance.points < 1) throw new BadRequestException('Solde de points insuffisant (1 point requis)');
+
+    await this.prisma.$transaction([
+      this.prisma.entrustedResearch.update({ where: { id: researchId }, data: { refreshDate: new Date() } }),
+      this.prisma.userPoint.update({ where: { userId }, data: { currentPoints: { decrement: 1 } } }),
+      this.prisma.pointUsage.create({ data: { userId, researchId, pointsUsed: 1, action: 'BOOST_RESEARCH' } }),
+    ]);
+    return { success: true, message: 'Recherche actualisée avec succès' };
   }
 
   // N jours × 2 points → mettre en publicité sur la page d'accueil

@@ -37,6 +37,13 @@ export class PointsController {
     return this.pointsService.boostAnnounce(req.user.userId, Number(id));
   }
 
+  // Actualiser une recherche confiée (1 point)
+  @Put('researches/:id/boost')
+  @UseGuards(JwtAuthGuard)
+  boostResearch(@Req() req: any, @Param('id') id: string) {
+    return this.pointsService.boostResearch(req.user.userId, Number(id));
+  }
+
   // Mettre en publicité (2 pts/jour)
   @Post('announces/:id/feature')
   @UseGuards(JwtAuthGuard)

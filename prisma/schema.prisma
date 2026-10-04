@@ -123,8 +123,12 @@ model PointUsage {
   userId     Int
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  announceId Int
-  announce   Announce @relation(fields: [announceId], references: [id], onDelete: Cascade)
+  // Une dépense de points concerne soit une annonce, soit une recherche confiée (actualisation).
+  announceId Int?
+  announce   Announce? @relation(fields: [announceId], references: [id], onDelete: Cascade)
+
+  researchId Int?
+  research   EntrustedResearch? @relation(fields: [researchId], references: [id], onDelete: Cascade)
 
   @@map("point_usage")
 }
@@ -239,7 +243,7 @@ model Announce {
   title           String?   // Added title (français corrigé ; repli des autres langues)
   titleAr         String?   // traduction automatique (voir title-translation.service.ts)
   titleEn         String?
-  shortDescription String?  // Added short description (français corrigé ; repli des autres langues)
+  shortDescription String?  @db.Text // Added short description (français corrigé ; repli des autres langues)
   shortDescriptionAr String? @db.Text // traduction automatique (title-translation.service.ts)
   shortDescriptionEn String? @db.Text
   status          AnnounceStatus
@@ -607,6 +611,9 @@ model EntrustedResearch {
   amenities        String? @db.Text // JSON string of amenities IDs
 
   createdAt        DateTime @default(now())
+  // Dernière actualisation payée en points (remonte la demande en tête de /demandes)
+  refreshDate      DateTime?
+  pointUsages      PointUsage[]
 
   @@map("entrusted_research")
 }

@@ -10,6 +10,7 @@ export class MessageService {
   ) {}
 
   async sendMessage(senderId: number, receiverId: number, announceId: number | null, content: string) {
+    content = String(content ?? '').slice(0, 5000); // limite de 5000 caractères
     const message = await this.prisma.message.create({
       data: {
         senderId,

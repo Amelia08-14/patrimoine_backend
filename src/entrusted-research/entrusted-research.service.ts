@@ -87,8 +87,13 @@ export class EntrustedResearchService {
       : [];
     const townMap = new Map(towns.map((t) => [t.id, t.nameFr]));
 
+    // Tri par dernière activité : une recherche actualisée avec des points remonte en tête.
+    const activity = (r: { refreshDate: Date | null; createdAt: Date }) => (r.refreshDate ?? r.createdAt).getTime();
+    researches.sort((a, b) => activity(b) - activity(a));
+
     return researches.map((r) => ({
       ...r,
+      lastActivityAt: r.refreshDate ?? r.createdAt,
       cityName: r.cityId ? cityMap.get(r.cityId) || null : null,
       townNames: (townIdsByResearch.get(r.id) || []).map((id) => townMap.get(id)).filter(Boolean),
     }));

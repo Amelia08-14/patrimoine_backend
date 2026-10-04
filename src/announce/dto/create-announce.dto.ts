@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, ValidateIf, MaxLength } from 'class-validator';
 import { TransactionType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
@@ -9,6 +9,7 @@ export class CreateAnnounceDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(5000)
   shortDescription?: string;
 
   @IsEnum(TransactionType)

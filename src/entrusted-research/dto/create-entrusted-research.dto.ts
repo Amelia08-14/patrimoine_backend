@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsOptional, IsString, IsDateString, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, IsDateString, IsNotEmpty, MaxLength } from 'class-validator';
 import { TransactionType } from '@prisma/client';
 
 export class CreateEntrustedResearchDto {
@@ -44,6 +44,7 @@ export class CreateEntrustedResearchDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(5000)
   comment: string;
 
   @IsOptional()

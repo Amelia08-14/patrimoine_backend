@@ -2,6 +2,11 @@ import { IsEnum, IsNumber, IsOptional, IsString, IsDateString, IsNotEmpty, MaxLe
 import { TransactionType } from '@prisma/client';
 
 export class CreateEntrustedResearchDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  title?: string;
+
   @IsEnum(TransactionType)
   transaction: TransactionType;
 

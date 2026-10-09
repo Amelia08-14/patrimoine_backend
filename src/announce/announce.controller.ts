@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseInterceptors, UploadedFiles, UseGuards, Req, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Body, Param, UseInterceptors, UploadedFiles, UseGuards, Req, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { AnnounceService } from './announce.service';
 import { CreateAnnounceDto } from './dto/create-announce.dto';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -28,6 +28,23 @@ export class AnnounceController {
   @Get('user/:userId')
   async findUserAnnounces(@Param('userId') userId: string) {
     return this.announceService.findByUserPublic(Number(userId));
+  }
+
+  // Modification par le propriétaire (repasse en attente de validation)
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  async updateMine(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { title?: string; shortDescription?: string; price?: number; priceUnit?: string; priceType?: string },
+  ) {
+    return this.announceService.updateMine(req.user.userId, Number(id), body);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  async deleteMine(@Req() req: any, @Param('id') id: string) {
+    return this.announceService.deleteMine(req.user.userId, Number(id));
   }
 
   @Get(':id')

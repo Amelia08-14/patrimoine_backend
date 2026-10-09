@@ -92,6 +92,12 @@ export class AdminController {
     return this.adminService.getPendingAnnounces();
   }
 
+  @Post('announces/:id/message')
+  async sendAnnounceMessage(@Req() req: any, @Param('id') id: string, @Body() body: { content: string }) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.sendAnnounceMessage(req.user.userId, Number(id), body?.content);
+  }
+
   @Patch('announces/:id/status')
   async updateAnnounceStatus(@Req() req: any, @Param('id') id: string, @Body() body: { status: AnnounceStatus }) {
     await this.adminService.checkAdmin(req.user.userId);

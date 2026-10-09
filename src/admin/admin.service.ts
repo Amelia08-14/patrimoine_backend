@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -447,6 +447,28 @@ export class AdminService {
         },
       },
     });
+  }
+
+  // Message d'explication envoyé par l'administration au propriétaire d'une annonce (ex. annonce non éligible) :
+  // apparaît dans sa messagerie et dans ses notifications.
+  async sendAnnounceMessage(adminId: number, announceId: number, content: string) {
+    const text = String(content || '').trim().slice(0, 5000);
+    if (!text) throw new BadRequestException('Message vide');
+    const announce = await this.prisma.announce.findUnique({ where: { id: announceId }, select: { id: true, userId: true, reference: true } });
+    if (!announce) throw new NotFoundException('Annonce introuvable');
+    const message = await this.prisma.message.create({
+      data: { senderId: adminId, receiverId: announce.userId, announceId: announce.id, content: text },
+    });
+    try {
+      await this.notificationService.create(
+        announce.userId,
+        'MESSAGE',
+        `Message de l'administration à propos de votre annonce ${announce.reference}`,
+        text.slice(0, 140),
+        '/profile/messages',
+      );
+    } catch (e) { /* silencieux */ }
+    return message;
   }
 
   async updateAnnounceStatus(announceId: number, status: AnnounceStatus) {

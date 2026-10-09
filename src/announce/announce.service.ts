@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnounceDto } from './dto/create-announce.dto';
 import { AnnounceStatus, TransactionType, ContactChannel } from '@prisma/client';
@@ -369,6 +369,31 @@ export class AnnounceService {
         console.error("Error creating announce:", error);
         throw error;
     }
+  }
+
+  // Modification par le propriétaire : seuls les champs « éditoriaux » sont modifiables, et l'annonce repasse
+  // en attente de validation (revalidation par l'administration) ; les traductions sont refaites.
+  async updateMine(userId: number, id: number, data: { title?: string; shortDescription?: string; price?: number; priceUnit?: string; priceType?: string }) {
+    const announce = await this.prisma.announce.findUnique({ where: { id } });
+    if (!announce) throw new NotFoundException('Annonce introuvable');
+    if (announce.userId !== userId) throw new ForbiddenException("Cette annonce ne vous appartient pas");
+    const patch: any = { status: 'WAITING_VALIDATION' };
+    if (data.title !== undefined) { patch.title = String(data.title).trim().slice(0, 190) || null; patch.titleAr = null; patch.titleEn = null; }
+    if (data.shortDescription !== undefined) { patch.shortDescription = String(data.shortDescription).slice(0, 5000) || null; patch.shortDescriptionAr = null; patch.shortDescriptionEn = null; }
+    if (data.price !== undefined && Number.isFinite(Number(data.price)) && Number(data.price) >= 0) patch.price = Number(data.price);
+    if (data.priceUnit !== undefined) patch.priceUnit = data.priceUnit || null;
+    if (data.priceType !== undefined) patch.priceType = data.priceType || null;
+    const updated = await this.prisma.announce.update({ where: { id }, data: patch });
+    this.titleTranslation.scheduleForAnnounce(updated.id, updated.title, updated.shortDescription);
+    return updated;
+  }
+
+  async deleteMine(userId: number, id: number) {
+    const announce = await this.prisma.announce.findUnique({ where: { id } });
+    if (!announce) throw new NotFoundException('Annonce introuvable');
+    if (announce.userId !== userId) throw new ForbiddenException("Cette annonce ne vous appartient pas");
+    await this.prisma.announce.delete({ where: { id } });
+    return { success: true };
   }
 
   async findAll() {

@@ -573,6 +573,7 @@ model Contact {
 
 model EntrustedResearch {
   id               Int             @id @default(autoincrement())
+  title            String?         // titre donné par le demandeur à sa recherche
   transaction      TransactionType
   
   // Property Criteria

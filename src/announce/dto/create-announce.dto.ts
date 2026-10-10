@@ -165,6 +165,9 @@ export class CreateAnnounceDto {
   // déposant — envoyé en string par le formulaire multipart, absent si la couverture est une photo.
   @IsString() @IsOptional() coverVideoIndex?: string;
 
+  // Copie JSON du formulaire (pour la modification ultérieure par le propriétaire)
+  @IsString() @IsOptional() formSnapshot?: string;
+
   @IsOptional()
   userId?: string;
 }

@@ -268,6 +268,7 @@ model Announce {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   property        Property?
+  formSnapshot    AnnounceFormSnapshot?
   pointUsages     PointUsage[]
   favoritedBy     Favorite[]
   messages        Message[]
@@ -785,4 +786,17 @@ model Advertisement {
   updatedAt   DateTime  @updatedAt
 
   @@map("advertisement")
+}
+
+// Copie du formulaire de dépôt tel que saisi (valeurs, contacts, chambres…) : permet au propriétaire de
+// rouvrir l'annonce dans le formulaire complet pour la modifier. Table séparée pour ne jamais alourdir les
+// listes publiques d'annonces.
+model AnnounceFormSnapshot {
+  id         Int      @id @default(autoincrement())
+  announceId Int      @unique
+  announce   Announce @relation(fields: [announceId], references: [id], onDelete: Cascade)
+  data       String   @db.LongText
+  updatedAt  DateTime @updatedAt
+
+  @@map("announce_form_snapshot")
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, UseInterceptors, UploadedFiles, UseGuards, Req, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Put, Delete, Body, Param, UseInterceptors, UploadedFiles, UseGuards, Req, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { AnnounceService } from './announce.service';
 import { CreateAnnounceDto } from './dto/create-announce.dto';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -39,6 +39,38 @@ export class AnnounceController {
     @Body() body: { title?: string; shortDescription?: string; price?: number; priceUnit?: string; priceType?: string },
   ) {
     return this.announceService.updateMine(req.user.userId, Number(id), body);
+  }
+
+  // Données du formulaire pour modifier une annonce (propriétaire)
+  @Get(':id/edit-data')
+  @UseGuards(JwtAuthGuard)
+  async editData(@Req() req: any, @Param('id') id: string) {
+    return this.announceService.getEditData(req.user.userId, Number(id));
+  }
+
+  // Modification complète (formulaire de dépôt rouvert) — repasse en attente de validation
+  @Put(':id/full')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'images', maxCount: 30 },
+    { name: 'videos', maxCount: 5 }
+  ], {
+    storage: diskStorage({
+      destination: './uploads',
+      filename: (req: any, file: any, callback: any) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        callback(null, `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  async updateFull(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: CreateAnnounceDto,
+    @UploadedFiles() files: { images?: Array<Express.Multer.File>, videos?: Array<Express.Multer.File> },
+  ) {
+    const allFiles = [...(files?.images || []), ...(files?.videos || [])];
+    return this.announceService.updateFull(req.user.userId, Number(id), dto, allFiles);
   }
 
   @Delete(':id')

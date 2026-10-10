@@ -8,7 +8,7 @@ import { TitleTranslationService } from './title-translation.service';
 export class AnnounceService {
   constructor(private prisma: PrismaService, private titleTranslation: TitleTranslationService) {}
 
-  async create(userId: number, createAnnounceDto: CreateAnnounceDto, files: Array<Express.Multer.File>) {
+  async create(userId: number, createAnnounceDto: CreateAnnounceDto, files: Array<Express.Multer.File>, opts?: { skipTranslation?: boolean }) {
     const { imagesMetadata, coverVideoIndex: coverVideoIndexRaw } = createAnnounceDto;
 
     // Couverture vidéo choisie par le déposant : si présente, aucune photo ne doit être marquée
@@ -363,7 +363,12 @@ export class AnnounceService {
       }
     });
     // Correction + traduction (fr/ar/en) du titre, en arrière-plan : ne retarde ni ne bloque la création.
-    this.titleTranslation.scheduleForAnnounce(announce.id, announce.title, announce.shortDescription);
+    if (createAnnounceDto.formSnapshot) {
+      try {
+        await this.prisma.announceFormSnapshot.create({ data: { announceId: announce.id, data: createAnnounceDto.formSnapshot } });
+      } catch (e) { console.error('Snapshot du formulaire non enregistré', e); }
+    }
+    if (!opts?.skipTranslation) this.titleTranslation.scheduleForAnnounce(announce.id, announce.title, announce.shortDescription);
     return announce;
     } catch (error) {
         console.error("Error creating announce:", error);
@@ -386,6 +391,69 @@ export class AnnounceService {
     const updated = await this.prisma.announce.update({ where: { id }, data: patch });
     this.titleTranslation.scheduleForAnnounce(updated.id, updated.title, updated.shortDescription);
     return updated;
+  }
+
+  // Données nécessaires pour rouvrir l'annonce dans le formulaire de dépôt (propriétaire uniquement).
+  async getEditData(userId: number, id: number) {
+    const announce = await this.prisma.announce.findUnique({
+      where: { id },
+      include: { property: { include: { images: true } }, formSnapshot: true },
+    });
+    if (!announce) throw new NotFoundException('Annonce introuvable');
+    if (announce.userId !== userId) throw new ForbiddenException("Cette annonce ne vous appartient pas");
+    let snapshot: any = null;
+    try { snapshot = announce.formSnapshot ? JSON.parse(announce.formSnapshot.data) : null; } catch { snapshot = null; }
+    let videos: string[] = [];
+    try { videos = announce.property?.videos ? JSON.parse(announce.property.videos) : []; } catch { videos = []; }
+    return {
+      announce: { id: announce.id, reference: announce.reference, status: announce.status, title: announce.title, shortDescription: announce.shortDescription, price: announce.price },
+      snapshot,
+      images: (announce.property?.images || []).map((i) => ({ id: i.id, url: i.url, category: i.category, isMain: i.isMain, contentType: i.contentType })),
+      videos,
+      coverVideoIndex: announce.property?.coverVideoIndex ?? null,
+    };
+  }
+
+  // Modification COMPLÈTE : le formulaire entier est renvoyé (médias compris). On construit le nouveau contenu avec
+  // la logique de création, puis on le « transplante » dans l'annonce existante pour conserver son identifiant, ses
+  // favoris, messages, statistiques et historique de points. L'annonce repasse en attente de validation.
+  async updateFull(userId: number, id: number, dto: CreateAnnounceDto, files: Array<Express.Multer.File>) {
+    const old = await this.prisma.announce.findUnique({ where: { id }, include: { property: { include: { images: true } } } });
+    if (!old) throw new NotFoundException('Annonce introuvable');
+    if (old.userId !== userId) throw new ForbiddenException("Cette annonce ne vous appartient pas");
+
+    const created: any = await this.create(userId, dto, files, { skipTranslation: true });
+    const oldImageUrls = (old.property?.images || []).map((i) => i.url).filter(Boolean) as string[];
+
+    await this.prisma.$transaction(async (tx) => {
+      if (old.property) await tx.property.delete({ where: { id: old.property.id } });
+      await tx.property.update({ where: { id: created.property.id }, data: { announceId: old.id } });
+      await tx.announceFormSnapshot.deleteMany({ where: { announceId: old.id } });
+      await tx.announceFormSnapshot.updateMany({ where: { announceId: created.id }, data: { announceId: old.id } });
+      await tx.announce.delete({ where: { id: created.id } });
+      await tx.announce.update({
+        where: { id: old.id },
+        data: {
+          title: created.title,
+          shortDescription: created.shortDescription,
+          titleAr: null, titleEn: null, shortDescriptionAr: null, shortDescriptionEn: null,
+          type: created.type,
+          price: created.price,
+          priceUnit: created.priceUnit,
+          priceType: created.priceType,
+          status: AnnounceStatus.WAITING_VALIDATION,
+        },
+      });
+    });
+
+    // Ancien fichiers image devenus orphelins : nettoyage best-effort
+    try {
+      const fs = await import('fs');
+      for (const u of oldImageUrls) { fs.unlink(u, () => undefined); }
+    } catch { /* silencieux */ }
+
+    this.titleTranslation.scheduleForAnnounce(old.id, created.title, created.shortDescription);
+    return this.prisma.announce.findUnique({ where: { id: old.id } });
   }
 
   async deleteMine(userId: number, id: number) {
@@ -551,13 +619,15 @@ export class AnnounceService {
           }
         },
         pointUsages: { select: { pointsUsed: true, action: true, usageDate: true } },
+        formSnapshot: { select: { id: true } },
       }
     });
 
     // Agrégats points par annonce (nombre de consommations + total dépensé), utilisés par le
     // tableau "Mes Annonces" — filtres et KPI de positionnement du client.
-    return announces.map((a) => ({
+    return announces.map(({ formSnapshot, ...a }) => ({
       ...a,
+      hasSnapshot: !!formSnapshot,
       pointsUsageCount: a.pointUsages.length,
       pointsUsageTotal: a.pointUsages.reduce((sum, u) => sum + u.pointsUsed, 0),
     }));

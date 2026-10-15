@@ -98,6 +98,32 @@ export class UsersController {
       passwordHash = await bcrypt.hash(body.newPassword, 10);
     }
 
+    // Un professionnel qui modifie les informations que l'admin a validées (raison sociale,
+    // registre de commerce, NIF/NIS, agrément, documents...) doit repasser par une revalidation —
+    // sinon le compte garderait le badge "vérifié" sur des informations jamais relues (demande
+    // client du 15/10/2026). On compare au dossier actuel plutôt que de réinitialiser à chaque
+    // sauvegarde, pour ne pas redemander une validation sur un simple changement de téléphone.
+    const current = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        userType: true, adminVerified: true, companyName: true, commercialRegister: true,
+        nif: true, nis: true, position: true, agreementExpiryDate: true,
+        rcDocumentUrl: true, agreementDocumentUrl: true, nifDocumentUrl: true, nisDocumentUrl: true,
+      },
+    });
+    let revalidationNeeded = false;
+    if (current?.userType === 'SOCIETE' && current.adminVerified) {
+      const hasNewDocument = !!(rcDocumentUrl || agreementDocumentUrl || nifDocumentUrl || nisDocumentUrl);
+      const identityChanged =
+        (body.companyName !== undefined && body.companyName !== current.companyName) ||
+        (body.commercialRegister !== undefined && body.commercialRegister !== current.commercialRegister) ||
+        (body.nif !== undefined && body.nif !== current.nif) ||
+        (body.nis !== undefined && body.nis !== current.nis) ||
+        (body.position !== undefined && body.position !== current.position) ||
+        hasNewDocument;
+      revalidationNeeded = identityChanged;
+    }
+
     // Resolve the selected commune to the real database town id. The completion
     // form sends the wilaya code and commune name, while User stores a Town id.
     let resolvedTownId = body.townId ? Number(body.townId) : undefined;
@@ -112,10 +138,14 @@ export class UsersController {
       resolvedTownId = town?.id;
     }
 
-    // Keep a readable full address in addition to the normalized town id.
+    // Keep a readable full address in addition to the normalized town id. The free-text address
+    // field was removed from the profile completion form (2026-10-15) — build the label from
+    // commune/wilaya alone when it is absent, instead of concatenating an "undefined" prefix.
     let fullAddress = body.address;
     if (body.commune && body.wilaya) {
-        fullAddress = `${body.address}, ${body.commune}, Wilaya ${body.wilaya}`;
+        fullAddress = body.address
+          ? `${body.address}, ${body.commune}, Wilaya ${body.wilaya}`
+          : `${body.commune}, Wilaya ${body.wilaya}`;
     }
 
     return this.prisma.user.update({
@@ -139,6 +169,7 @@ export class UsersController {
         position: body.position,
         agreementExpiryDate: body.agreementExpiryDate ? new Date(body.agreementExpiryDate) : undefined,
         ...(passwordHash && { passwordHash }),
+        ...(revalidationNeeded && { adminVerified: false }),
         ...(rcDocumentUrl && { rcDocumentUrl }),
         ...(agreementDocumentUrl && { agreementDocumentUrl }),
         ...(logoUrl && { agencyLogoUrl: logoUrl }),
@@ -173,6 +204,7 @@ export class UsersController {
         nisDocumentUrl: true,
         inapiDocumentUrl: true,
         agreementExpiryDate: true,
+        adminVerified: true,
       }
     });
   }

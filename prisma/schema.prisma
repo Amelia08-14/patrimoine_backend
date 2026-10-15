@@ -134,13 +134,18 @@ model PointUsage {
 }
 
 model PointPurchase {
-  id          Int       @id @default(autoincrement())
-  pack        String    // PACK_50 | PACK_100 | PACK_200
-  points      Int       // 50 | 100 | 200
-  price       Int       // 1500 | 2500 | 3500
-  status      String    @default("PENDING") // PENDING | VALIDATED | REJECTED
-  createdAt   DateTime  @default(now())
-  validatedAt DateTime?
+  id            Int       @id @default(autoincrement())
+  pack          String    // PACK_50 | PACK_100 | PACK_200
+  points        Int       // 50 | 100 | 200
+  price         Int       // 1500 | 2500 | 3500
+  status        String    @default("PENDING") // PENDING | VALIDATED | REJECTED
+  createdAt     DateTime  @default(now())
+  validatedAt   DateTime?
+  // Moyen de paiement déclaré + reçu de paiement (photo/PDF), demandés à la confirmation d'achat
+  // (2026-10-15) : CCP | VIREMENT | SUR_PLACE | BARIDIMOB. Le reçu peut être ajouté après coup si
+  // le paiement n'a pas encore été fait au moment de la commande.
+  paymentMethod String?
+  receiptUrl    String?
 
   userId      Int
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -157,6 +162,9 @@ model BoutiqueSubscription {
   createdAt      DateTime  @default(now())
   validatedAt    DateTime?
   expiresAt      DateTime? // date d'expiration des points (1 mois)
+  // Même convention que PointPurchase (2026-10-15).
+  paymentMethod  String?
+  receiptUrl     String?
 
   userId         Int
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)

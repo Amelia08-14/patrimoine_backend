@@ -1,10 +1,12 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { OfferPackKind } from '@prisma/client';
 
 @Injectable()
 export class PointsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private notificationService: NotificationService) {}
 
   async getBalance(userId: number) {
     let up = await this.prisma.userPoint.findUnique({ where: { userId } });
@@ -19,12 +21,22 @@ export class PointsService {
     return { points: up.currentPoints, expirationDate: up.expirationDate, expired: false };
   }
 
-  async purchasePack(userId: number, pack: string) {
+  async purchasePack(userId: number, pack: string, paymentMethod?: string, receiptUrl?: string) {
     const packDef = await this.prisma.offerPack.findUnique({ where: { kind_key: { kind: OfferPackKind.POINTS, key: pack } } });
     if (!packDef) throw new BadRequestException('Pack invalide');
     return this.prisma.pointPurchase.create({
-      data: { userId, pack, points: packDef.points, price: packDef.price, status: 'PENDING' }
+      data: { userId, pack, points: packDef.points, price: packDef.price, status: 'PENDING', paymentMethod, receiptUrl }
     });
+  }
+
+  // Ajouter/remplacer le reçu d'un achat PENDING appartenant à l'utilisateur — ne touche jamais un
+  // achat déjà validé/rejeté (son dossier est clos) ni celui d'un autre utilisateur.
+  async setReceipt(userId: number, purchaseId: number, receiptUrl?: string) {
+    if (!receiptUrl) throw new BadRequestException('Aucun fichier reçu');
+    const purchase = await this.prisma.pointPurchase.findFirst({ where: { id: purchaseId, userId } });
+    if (!purchase) throw new NotFoundException('Achat introuvable');
+    if (purchase.status !== 'PENDING') throw new BadRequestException('Cet achat a déjà été traité');
+    return this.prisma.pointPurchase.update({ where: { id: purchaseId }, data: { receiptUrl } });
   }
 
   async getUserPurchases(userId: number) {
@@ -145,5 +157,49 @@ export class PointsService {
     if (purchase.status !== 'PENDING') throw new BadRequestException('Déjà traité');
     await this.prisma.pointPurchase.update({ where: { id: purchaseId }, data: { status: 'REJECTED' } });
     return { success: true };
+  }
+
+  // Alerte "points bientôt expirés" (J-3) + notification + remise à zéro effective dès
+  // l'expiration réelle, plutôt que d'attendre que l'utilisateur revienne consulter son solde
+  // (la vérification paresseuse de getBalance() reste en place en complément) — demande client
+  // du 15/10/2026. Tourne une fois par jour ; le calcul en jours entiers restants garantit que
+  // chaque utilisateur ne reçoit l'alerte "J-3" qu'une seule fois (le compte à rebours ne vaut
+  // exactement 3 qu'un seul jour calendaire, en supposant que le cron ne manque pas un jour).
+  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  async checkExpiringPoints() {
+    const now = new Date();
+    const withPoints = await this.prisma.userPoint.findMany({
+      where: { currentPoints: { gt: 0 }, expirationDate: { not: null } },
+    });
+
+    for (const up of withPoints) {
+      if (!up.expirationDate) continue;
+      const daysRemaining = Math.ceil((up.expirationDate.getTime() - now.getTime()) / 86400000);
+
+      if (up.expirationDate < now) {
+        // Déjà expiré : on remet à 0 proactivement (sans attendre un prochain getBalance()) et
+        // on notifie — "même quand ils se terminent il aura une notification".
+        await this.prisma.userPoint.update({ where: { userId: up.userId }, data: { currentPoints: 0 } });
+        try {
+          await this.notificationService.create(
+            up.userId,
+            'POINTS_EXPIRED',
+            'Vos points ont expiré',
+            `Vos ${up.currentPoints} points restants ont expiré et ont été remis à zéro.`,
+            '/profile/points',
+          );
+        } catch { /* la notification ne doit jamais bloquer la remise à zéro */ }
+      } else if (daysRemaining === 3) {
+        try {
+          await this.notificationService.create(
+            up.userId,
+            'POINTS_EXPIRING',
+            'Vos points expirent bientôt',
+            `Il vous reste ${up.currentPoints} points, valables encore 3 jours. Pensez à les utiliser ou à en racheter.`,
+            '/profile/points',
+          );
+        } catch { /* best-effort */ }
+      }
+    }
   }
 }

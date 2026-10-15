@@ -1,6 +1,17 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { BoutiqueSubService } from './boutique-sub.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+const receiptStorage = diskStorage({
+  destination: './uploads/documents',
+  filename: (req, file, cb) => {
+    const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+    return cb(null, `receipt-${randomName}${extname(file.originalname)}`);
+  },
+});
 
 @Controller('boutique-sub')
 export class BoutiqueSubController {
@@ -8,8 +19,23 @@ export class BoutiqueSubController {
 
   @Post('purchase')
   @UseGuards(JwtAuthGuard)
-  purchase(@Req() req: any, @Body('pack') pack: string) {
-    return this.service.purchasePack(req.user.userId, pack);
+  @UseInterceptors(FileInterceptor('receipt', { storage: receiptStorage }))
+  purchase(
+    @Req() req: any,
+    @Body('pack') pack: string,
+    @Body('paymentMethod') paymentMethod: string,
+    @UploadedFile() receipt?: Express.Multer.File,
+  ) {
+    const receiptUrl = receipt ? `/uploads/documents/${receipt.filename}` : undefined;
+    return this.service.purchasePack(req.user.userId, pack, paymentMethod, receiptUrl);
+  }
+
+  @Put(':id/receipt')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('receipt', { storage: receiptStorage }))
+  uploadReceipt(@Req() req: any, @Param('id') id: string, @UploadedFile() receipt: Express.Multer.File) {
+    const receiptUrl = receipt ? `/uploads/documents/${receipt.filename}` : undefined;
+    return this.service.setReceipt(req.user.userId, Number(id), receiptUrl);
   }
 
   @Get('my')

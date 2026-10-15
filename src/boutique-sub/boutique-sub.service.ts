@@ -7,7 +7,7 @@ export class BoutiqueSubService {
   constructor(private prisma: PrismaService) {}
 
   // Utilisateur achète un pack boutique
-  async purchasePack(userId: number, pack: string) {
+  async purchasePack(userId: number, pack: string, paymentMethod?: string, receiptUrl?: string) {
     const def = await this.prisma.offerPack.findUnique({ where: { kind_key: { kind: OfferPackKind.BOUTIQUE, key: pack } } });
     if (!def) throw new BadRequestException('Pack boutique invalide');
 
@@ -24,8 +24,17 @@ export class BoutiqueSubService {
     }
 
     return this.prisma.boutiqueSubscription.create({
-      data: { userId, pack, price: def.price, pointsIncluded: def.points, status: 'PENDING' }
+      data: { userId, pack, price: def.price, pointsIncluded: def.points, status: 'PENDING', paymentMethod, receiptUrl }
     });
+  }
+
+  // Ajouter/remplacer le reçu d'une souscription PENDING appartenant à l'utilisateur.
+  async setReceipt(userId: number, subId: number, receiptUrl?: string) {
+    if (!receiptUrl) throw new BadRequestException('Aucun fichier reçu');
+    const sub = await this.prisma.boutiqueSubscription.findFirst({ where: { id: subId, userId } });
+    if (!sub) throw new NotFoundException('Souscription introuvable');
+    if (sub.status !== 'PENDING') throw new BadRequestException('Cette souscription a déjà été traitée');
+    return this.prisma.boutiqueSubscription.update({ where: { id: subId }, data: { receiptUrl } });
   }
 
   // Abonnement actif = VALIDATED et expiresAt dans le futur

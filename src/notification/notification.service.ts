@@ -6,7 +6,8 @@ export type NotificationType =
   | 'RESEARCH_MATCH'
   | 'ANNOUNCE_VALIDATED'
   | 'ANNOUNCE_REJECTED'
-  | 'POINTS_EXPIRING';
+  | 'POINTS_EXPIRING'
+  | 'POINTS_EXPIRED';
 
 @Injectable()
 export class NotificationService {

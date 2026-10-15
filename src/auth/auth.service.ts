@@ -156,10 +156,10 @@ export class AuthService {
     // Vérifier si le profil est complet (basé sur le type)
     let isProfileComplete = true;
     if (user.userType === 'PARTICULIER') {
-        // Toutes les informations obligatoires demandées au particulier doivent
-        // être présentes avant de considérer son profil comme complet.
+        // Civilité et adresse retirées du formulaire de complétion de profil (demande client du
+        // 15/10/2026, cf. frontend) : ne plus les exiger ici, sinon le profil resterait bloqué
+        // "incomplet" pour toujours (le champ ne peut plus jamais être rempli).
         if (
-          !user.civility ||
           !user.firstName ||
           !user.lastName ||
           !user.dateOfBirth ||

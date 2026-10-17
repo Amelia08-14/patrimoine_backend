@@ -62,6 +62,23 @@ export class PointsService {
     });
   }
 
+  // Notifie dès qu'une dépense amène le solde à 0 — "fin de points" au sens où le client
+  // l'entend le plus naturellement (épuisés par l'usage), distincte de l'expiration par date déjà
+  // gérée par checkExpiringPoints() (retour client du 17/10/2026 : "message fin de point
+  // automatique non fait"). best-effort : ne doit jamais faire échouer la dépense elle-même.
+  private async notifyIfDepleted(userId: number, balanceBefore: number, spent: number) {
+    if (balanceBefore - spent !== 0) return;
+    try {
+      await this.notificationService.create(
+        userId,
+        'POINTS_EXPIRED',
+        'Votre solde de points est épuisé',
+        'Vous avez utilisé tous vos points. Rachetez un pack pour continuer à actualiser ou mettre en avant vos annonces.',
+        '/profile/points',
+      );
+    } catch { /* best-effort */ }
+  }
+
   // 1 point → actualiser (refreshDate = now, remonte dans la catégorie)
   async boostAnnounce(userId: number, announceId: number) {
     const announce = await this.prisma.announce.findFirst({ where: { id: announceId, userId } });
@@ -75,6 +92,7 @@ export class PointsService {
       this.prisma.userPoint.update({ where: { userId }, data: { currentPoints: { decrement: 1 } } }),
       this.prisma.pointUsage.create({ data: { userId, announceId, pointsUsed: 1, action: 'BOOST' } })
     ]);
+    await this.notifyIfDepleted(userId, balance.points, 1);
     return { success: true, message: 'Annonce actualisée avec succès' };
   }
 
@@ -91,6 +109,7 @@ export class PointsService {
       this.prisma.userPoint.update({ where: { userId }, data: { currentPoints: { decrement: 1 } } }),
       this.prisma.pointUsage.create({ data: { userId, researchId, pointsUsed: 1, action: 'BOOST_RESEARCH' } }),
     ]);
+    await this.notifyIfDepleted(userId, balance.points, 1);
     return { success: true, message: 'Recherche actualisée avec succès' };
   }
 
@@ -113,6 +132,7 @@ export class PointsService {
       this.prisma.userPoint.update({ where: { userId }, data: { currentPoints: { decrement: cost } } }),
       this.prisma.pointUsage.create({ data: { userId, announceId, pointsUsed: cost, action: 'FEATURE' } })
     ]);
+    await this.notifyIfDepleted(userId, balance.points, cost);
     return { success: true, cost, featuredFrom, featuredUntil };
   }
 

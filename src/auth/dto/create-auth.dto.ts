@@ -22,7 +22,12 @@ export class CreateAuthDto {
   @IsOptional()
   @IsString()
   lastName?: string;
-  
+
+  // Date de naissance (particulier) — vérifiée côté service pour la limite d'âge légale (18 ans).
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+
   // User Type
   @IsOptional()
   @IsString()

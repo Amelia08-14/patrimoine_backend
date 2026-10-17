@@ -1,10 +1,12 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import { OfferPackKind, ContactChannel } from '@prisma/client';
 
 @Injectable()
 export class BoutiqueSubService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private notificationService: NotificationService) {}
 
   // Utilisateur achète un pack boutique
   async purchasePack(userId: number, pack: string, paymentMethod?: string, receiptUrl?: string) {
@@ -149,5 +151,46 @@ export class BoutiqueSubService {
       data: { ownerId, channel: channel as ContactChannel, announceId: null },
     });
     return { success: true, id: click.id };
+  }
+
+  // Alerte "boutique bientôt expirée" (J-3) + notification de fin réelle à l'expiration — même
+  // principe que PointsService.checkExpiringPoints() pour les points, demandé séparément côté
+  // boutique ("message fin boutique", retour client du 17/10/2026). La formule redevient
+  // "inactive" d'elle-même (getActiveSubscription ne regarde que expiresAt), donc ce cron ne fait
+  // que prévenir l'utilisateur — rien à réinitialiser en base.
+  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  async checkExpiringSubscriptions() {
+    const now = new Date();
+    const validated = await this.prisma.boutiqueSubscription.findMany({
+      where: { status: 'VALIDATED', expiresAt: { not: null } },
+    });
+
+    for (const sub of validated) {
+      if (!sub.expiresAt) continue;
+      const daysRemaining = Math.ceil((sub.expiresAt.getTime() - now.getTime()) / 86400000);
+
+      if (sub.expiresAt < now && sub.expiresAt.getTime() > now.getTime() - 86400000) {
+        // Fenêtre de 24h après l'expiration : ne notifie qu'une fois (le cron tourne une fois par jour).
+        try {
+          await this.notificationService.create(
+            sub.userId,
+            'BOUTIQUE_EXPIRED',
+            'Votre formule boutique a expiré',
+            "Votre boutique n'est plus visible publiquement. Renouvelez votre formule pour la réactiver.",
+            '/profile/vitrine',
+          );
+        } catch { /* best-effort */ }
+      } else if (daysRemaining === 3) {
+        try {
+          await this.notificationService.create(
+            sub.userId,
+            'BOUTIQUE_EXPIRING',
+            'Votre formule boutique expire bientôt',
+            'Il vous reste 3 jours avant expiration. Pensez à renouveler pour garder votre boutique active.',
+            '/profile/vitrine',
+          );
+        } catch { /* best-effort */ }
+      }
+    }
   }
 }

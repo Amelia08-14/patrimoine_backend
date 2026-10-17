@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards, Put, Body, Query, NotFoundException, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Controller, Get, Req, UseGuards, Put, Body, Query, NotFoundException, BadRequestException, UnauthorizedException, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -91,12 +91,7 @@ export class UsersController {
       inapiDocumentUrl = `/uploads/documents/${files.inapiDocument[0].filename}`;
     }
 
-    // Si le mot de passe est fourni, on le hash (pour la page info)
-    let passwordHash = undefined;
-    if (body.newPassword) {
-      const bcrypt = require('bcrypt');
-      passwordHash = await bcrypt.hash(body.newPassword, 10);
-    }
+    const bcrypt = require('bcrypt');
 
     // Un professionnel qui modifie les informations que l'admin a validées (raison sociale,
     // registre de commerce, NIF/NIS, agrément, documents...) doit repasser par une revalidation —
@@ -109,8 +104,25 @@ export class UsersController {
         userType: true, adminVerified: true, companyName: true, commercialRegister: true,
         nif: true, nis: true, position: true, agreementExpiryDate: true,
         rcDocumentUrl: true, agreementDocumentUrl: true, nifDocumentUrl: true, nisDocumentUrl: true,
+        passwordHash: true,
       },
     });
+
+    // Changer le mot de passe exige de confirmer l'actuel — jusqu'ici n'importe quel token valide
+    // pouvait le changer sans le vérifier, un vrai trou de sécurité (retour client du 17/10/2026 :
+    // "changement d'information ... ne passe pas un contrôle de validation"). Le champ existait déjà
+    // côté formulaire (/profile/info) mais n'était jamais envoyé/vérifié.
+    let passwordHash = undefined;
+    if (body.newPassword) {
+      if (!body.currentPassword) {
+        throw new BadRequestException('Mot de passe actuel requis pour le changer.');
+      }
+      const valid = current?.passwordHash && await bcrypt.compare(body.currentPassword, current.passwordHash);
+      if (!valid) {
+        throw new UnauthorizedException('Mot de passe actuel incorrect.');
+      }
+      passwordHash = await bcrypt.hash(body.newPassword, 10);
+    }
     let revalidationNeeded = false;
     if (current?.userType === 'SOCIETE' && current.adminVerified) {
       const hasNewDocument = !!(rcDocumentUrl || agreementDocumentUrl || nifDocumentUrl || nisDocumentUrl);

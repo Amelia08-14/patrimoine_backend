@@ -14,8 +14,8 @@ export class AuthService {
   ) {}
 
   async register(createAuthDto: CreateAuthDto) {
-    const { 
-      email, password, firstName, lastName, phone,
+    const {
+      email, password, firstName, lastName, phone, dateOfBirth,
       userType, companyName, activityType, commercialRegister, position, townId, townCode
     } = createAuthDto;
 
@@ -39,6 +39,19 @@ export class AuthService {
       }
     }
 
+    // Site réservé aux personnes majeures — vérifié ici aussi (pas seulement côté formulaire), au
+    // cas où l'appel n'arriverait pas en passant par le formulaire web (retour client du 17/10/2026).
+    if (resolvedUserType === UserType.PARTICULIER && dateOfBirth) {
+      const dob = new Date(dateOfBirth);
+      const now = new Date();
+      let age = now.getFullYear() - dob.getFullYear();
+      const hasHadBirthdayThisYear = now.getMonth() > dob.getMonth() || (now.getMonth() === dob.getMonth() && now.getDate() >= dob.getDate());
+      if (!hasHadBirthdayThisYear) age -= 1;
+      if (age < 18) {
+        throw new BadRequestException("Ce site est réservé aux personnes majeures (18 ans et plus).");
+      }
+    }
+
     const resolvedTownId: number | undefined = townId ? Number(townId) : undefined;
 
     // Créer l'utilisateur
@@ -49,6 +62,7 @@ export class AuthService {
         firstName,
         lastName,
         phone,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
         userType: resolvedUserType, // Prisma Enum
         companyName,
         companyActivity: activityType as any, // Prisma Enum

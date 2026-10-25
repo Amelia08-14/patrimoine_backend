@@ -92,6 +92,47 @@ export class AdminService {
     return user;
   }
 
+  // --- Messagerie admin (/admin/messages) — boîte partagée "service client" : tous les messages
+  // échangés entre un compte ADMIN et un utilisateur, quel que soit l'admin. Le front les regroupe
+  // par utilisateur, comme une messagerie mail. Fiche utilisateur plus complète que dans la
+  // messagerie publique (email, téléphone, type, statut) : réservée à l'admin. ---
+
+  private async adminIds() {
+    const admins = await this.prisma.user.findMany({ where: { userType: UserType.ADMIN }, select: { id: true } });
+    return admins.map((a) => a.id);
+  }
+
+  async getAdminInbox() {
+    const ids = await this.adminIds();
+    const userSelect = {
+      id: true, email: true, firstName: true, lastName: true, companyName: true, imageUrl: true,
+      phone: true, userType: true, adminVerified: true, accountStatus: true,
+    };
+    return this.prisma.message.findMany({
+      where: { OR: [{ senderId: { in: ids } }, { receiverId: { in: ids } }] },
+      include: {
+        sender: { select: userSelect },
+        receiver: { select: userSelect },
+        announce: { select: { id: true, reference: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  // Messages reçus d'un utilisateur, non lus par l'administration (badge du menu admin).
+  async getAdminUnreadCount() {
+    const ids = await this.adminIds();
+    const count = await this.prisma.message.count({ where: { receiverId: { in: ids }, isRead: false } });
+    return { count };
+  }
+
+  // Ouvrir une conversation = marquer comme lus tous les messages de cet utilisateur vers l'administration.
+  async markAdminConversationRead(userId: number) {
+    const ids = await this.adminIds();
+    const res = await this.prisma.message.updateMany({ where: { senderId: userId, receiverId: { in: ids }, isRead: false }, data: { isRead: true } });
+    return { updated: res.count };
+  }
+
   // --- Tableau de bord : indicateurs clés (annonces, inscriptions, répartition pro) ---
 
   async getDashboardStats(filters?: { from?: string; to?: string }) {

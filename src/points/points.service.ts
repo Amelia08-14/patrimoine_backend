@@ -3,6 +3,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { OfferPackKind } from '@prisma/client';
+import { assertAccountVerified } from '../users/account-verification';
+import { assertNoPendingOrder } from './pending-order';
 
 @Injectable()
 export class PointsService {
@@ -24,6 +26,7 @@ export class PointsService {
   async purchasePack(userId: number, pack: string, paymentMethod?: string, receiptUrl?: string) {
     const packDef = await this.prisma.offerPack.findUnique({ where: { kind_key: { kind: OfferPackKind.POINTS, key: pack } } });
     if (!packDef) throw new BadRequestException('Pack invalide');
+    await assertNoPendingOrder(this.prisma, userId);
     return this.prisma.pointPurchase.create({
       data: { userId, pack, points: packDef.points, price: packDef.price, status: 'PENDING', paymentMethod, receiptUrl }
     });
@@ -79,10 +82,33 @@ export class PointsService {
     } catch { /* best-effort */ }
   }
 
+  // Délai minimal entre deux actualisations d'une même annonce/recherche (demande client du
+  // 25/10/2026). Calculé sur la dernière actualisation réellement payée (PointUsage), pas sur
+  // refreshDate, qui peut aussi bouger pour d'autres raisons (validation admin...).
+  static readonly REFRESH_COOLDOWN_MINUTES = 45;
+
+  private async assertRefreshCooldown(where: { announceId: number; action: 'BOOST' } | { researchId: number; action: 'BOOST_RESEARCH' }) {
+    const last = await this.prisma.pointUsage.findFirst({ where, orderBy: { usageDate: 'desc' }, select: { usageDate: true } });
+    if (!last) return;
+    const cooldownMs = PointsService.REFRESH_COOLDOWN_MINUTES * 60 * 1000;
+    const remainingMs = new Date(last.usageDate).getTime() + cooldownMs - Date.now();
+    if (remainingMs > 0) {
+      const minutes = Math.ceil(remainingMs / 60000);
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'REFRESH_COOLDOWN',
+        remainingMinutes: minutes,
+        message: `Vous avez déjà actualisé récemment. Prochaine actualisation possible dans ${minutes} min (une actualisation toutes les ${PointsService.REFRESH_COOLDOWN_MINUTES} min).`,
+      });
+    }
+  }
+
   // 1 point → actualiser (refreshDate = now, remonte dans la catégorie)
   async boostAnnounce(userId: number, announceId: number) {
+    await assertAccountVerified(this.prisma, userId);
     const announce = await this.prisma.announce.findFirst({ where: { id: announceId, userId } });
     if (!announce) throw new NotFoundException('Annonce introuvable');
+    await this.assertRefreshCooldown({ announceId, action: 'BOOST' });
 
     const balance = await this.getBalance(userId);
     if (balance.points < 1) throw new BadRequestException('Solde de points insuffisant (1 point requis)');
@@ -98,8 +124,10 @@ export class PointsService {
 
   // 1 point → actualiser une recherche confiée (refreshDate = now, remonte en tête de /demandes)
   async boostResearch(userId: number, researchId: number) {
+    await assertAccountVerified(this.prisma, userId);
     const research = await this.prisma.entrustedResearch.findFirst({ where: { id: researchId, userId } });
     if (!research) throw new NotFoundException('Recherche introuvable');
+    await this.assertRefreshCooldown({ researchId, action: 'BOOST_RESEARCH' });
 
     const balance = await this.getBalance(userId);
     if (balance.points < 1) throw new BadRequestException('Solde de points insuffisant (1 point requis)');
@@ -115,6 +143,7 @@ export class PointsService {
 
   // N jours × 2 points → mettre en publicité sur la page d'accueil
   async featureAnnounce(userId: number, announceId: number, days: number, startDate: Date) {
+    await assertAccountVerified(this.prisma, userId);
     if (days < 1 || days > 30) throw new BadRequestException('Durée invalide (1-30 jours)');
     const cost = days * 2;
     const announce = await this.prisma.announce.findFirst({ where: { id: announceId, userId } });

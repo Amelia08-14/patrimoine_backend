@@ -6,6 +6,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertAccountVerified } from '../users/account-verification';
 
 @Controller('announces')
 export class AnnounceController {
@@ -38,6 +39,7 @@ export class AnnounceController {
     @Param('id') id: string,
     @Body() body: { title?: string; shortDescription?: string; price?: number; priceUnit?: string; priceType?: string },
   ) {
+    await assertAccountVerified(this.prisma, req.user.userId);
     return this.announceService.updateMine(req.user.userId, Number(id), body);
   }
 
@@ -69,6 +71,7 @@ export class AnnounceController {
     @Body() dto: CreateAnnounceDto,
     @UploadedFiles() files: { images?: Array<Express.Multer.File>, videos?: Array<Express.Multer.File> },
   ) {
+    await assertAccountVerified(this.prisma, req.user.userId);
     const allFiles = [...(files?.images || []), ...(files?.videos || [])];
     return this.announceService.updateFull(req.user.userId, Number(id), dto, allFiles);
   }
@@ -135,10 +138,7 @@ export class AnnounceController {
   }))
   async create(@Body() createAnnounceDto: CreateAnnounceDto, @UploadedFiles() files: { images?: Array<Express.Multer.File>, videos?: Array<Express.Multer.File> }, @Req() req: any) {
     // Check if user is validated
-    const user = await this.prisma.user.findUnique({ where: { id: req.user.userId } });
-    if (!user || !user.adminVerified) {
-        throw new UnauthorizedException("Votre compte doit être validé par un administrateur pour poster des annonces.");
-    }
+    await assertAccountVerified(this.prisma, req.user.userId);
 
     // Merge images and videos into a single array or handle them in service
     // For now, let's just pass images to the service as it expects, 

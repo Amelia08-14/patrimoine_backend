@@ -2,6 +2,9 @@ import { Controller, Get, Req, UseGuards, Put, Body, Query, NotFoundException, B
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+// bcryptjs (et non `bcrypt`, jamais installé) — même lib que AuthService/AdminService. Un
+// `require('bcrypt')` ici faisait planter CHAQUE sauvegarde du profil en 500 (retour du 25/10/2026).
+import * as bcrypt from 'bcryptjs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -91,19 +94,20 @@ export class UsersController {
       inapiDocumentUrl = `/uploads/documents/${files.inapiDocument[0].filename}`;
     }
 
-    const bcrypt = require('bcrypt');
-
-    // Un professionnel qui modifie les informations que l'admin a validées (raison sociale,
-    // registre de commerce, NIF/NIS, agrément, documents...) doit repasser par une revalidation —
-    // sinon le compte garderait le badge "vérifié" sur des informations jamais relues (demande
-    // client du 15/10/2026). On compare au dossier actuel plutôt que de réinitialiser à chaque
-    // sauvegarde, pour ne pas redemander une validation sur un simple changement de téléphone.
+    // Toute modification réelle du profil (particulier OU professionnel) repasse par une validation
+    // admin : le compte redevient "en attente" (adminVerified = false) et ne peut plus publier
+    // (annonces, recherches confiées, actualisations...) tant que l'admin n'a pas revalidé
+    // (demande client du 25/10/2026 — avant, seuls les champs légaux d'un pro déclenchaient ça).
+    // On compare au dossier actuel plutôt que de réinitialiser à chaque sauvegarde : renvoyer le
+    // formulaire sans rien changer ne bloque pas le compte. Le mot de passe n'en fait pas partie
+    // (l'admin n'a rien à relire dessus, et il est déjà protégé par le mot de passe actuel).
     const current = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        userType: true, adminVerified: true, companyName: true, commercialRegister: true,
-        nif: true, nis: true, position: true, agreementExpiryDate: true,
-        rcDocumentUrl: true, agreementDocumentUrl: true, nifDocumentUrl: true, nisDocumentUrl: true,
+        userType: true, adminVerified: true, companyName: true, companyNameAr: true, companyNameEn: true,
+        commercialRegister: true, nif: true, nis: true, position: true, agreementExpiryDate: true,
+        civility: true, firstName: true, lastName: true, dateOfBirth: true, phone: true, landline: true,
+        townId: true,
         passwordHash: true,
       },
     });
@@ -123,19 +127,6 @@ export class UsersController {
       }
       passwordHash = await bcrypt.hash(body.newPassword, 10);
     }
-    let revalidationNeeded = false;
-    if (current?.userType === 'SOCIETE' && current.adminVerified) {
-      const hasNewDocument = !!(rcDocumentUrl || agreementDocumentUrl || nifDocumentUrl || nisDocumentUrl);
-      const identityChanged =
-        (body.companyName !== undefined && body.companyName !== current.companyName) ||
-        (body.commercialRegister !== undefined && body.commercialRegister !== current.commercialRegister) ||
-        (body.nif !== undefined && body.nif !== current.nif) ||
-        (body.nis !== undefined && body.nis !== current.nis) ||
-        (body.position !== undefined && body.position !== current.position) ||
-        hasNewDocument;
-      revalidationNeeded = identityChanged;
-    }
-
     // Resolve the selected commune to the real database town id. The completion
     // form sends the wilaya code and commune name, while User stores a Town id.
     let resolvedTownId = body.townId ? Number(body.townId) : undefined;
@@ -160,7 +151,25 @@ export class UsersController {
           : `${body.commune}, Wilaya ${body.wilaya}`;
     }
 
-    return this.prisma.user.update({
+    // Champ texte envoyé ET différent de la valeur en base (null et "" sont équivalents).
+    const textChanged = (field: string, currentValue: string | null | undefined) =>
+      body[field] !== undefined && String(body[field] ?? '') !== String(currentValue ?? '');
+    const dayOf = (d?: Date | string | null) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+    const dateChanged = (field: string, currentValue: Date | null | undefined) =>
+      !!body[field] && dayOf(body[field]) !== dayOf(currentValue);
+    const hasNewDocument = !!(rcDocumentUrl || agreementDocumentUrl || logoUrl || nifDocumentUrl || nisDocumentUrl || inapiDocumentUrl);
+    const profileChanged = !!current && current.userType !== 'ADMIN' && (
+      hasNewDocument ||
+      (['civility', 'firstName', 'lastName', 'phone', 'landline', 'companyName', 'companyNameAr', 'companyNameEn',
+        'commercialRegister', 'nif', 'nis', 'position'] as const)
+        .some((f) => textChanged(f, (current as any)[f])) ||
+      dateChanged('dateOfBirth', current.dateOfBirth) ||
+      dateChanged('agreementExpiryDate', current.agreementExpiryDate) ||
+      (resolvedTownId !== undefined && resolvedTownId !== current.townId)
+    );
+    const revalidationNeeded = profileChanged;
+
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         civility: body.civility,
@@ -219,6 +228,27 @@ export class UsersController {
         adminVerified: true,
       }
     });
+
+    // Prévient l'admin qu'un dossier attend sa relecture (best-effort, ne bloque jamais la sauvegarde).
+    if (revalidationNeeded) {
+      try {
+        const admins = await this.prisma.user.findMany({ where: { userType: 'ADMIN' }, select: { id: true } });
+        const who = updated.companyName || [updated.firstName, updated.lastName].filter(Boolean).join(' ') || updated.email;
+        await this.prisma.notification.createMany({
+          data: admins.map((a) => ({
+            userId: a.id,
+            type: 'PROFILE_REVALIDATION',
+            title: 'Profil modifié à revalider',
+            body: `${who} a modifié son profil. Le compte est bloqué jusqu'à votre validation.`,
+            link: '/admin/users',
+          })),
+        });
+      } catch { /* best-effort */ }
+    }
+
+    // `pendingRevalidation` : le front affiche "modifications envoyées pour validation" au lieu
+    // d'un simple succès, et sait que le compte ne peut plus publier en attendant.
+    return { ...updated, pendingRevalidation: revalidationNeeded };
   }
 
   @UseGuards(JwtAuthGuard)

@@ -2,6 +2,10 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEntrustedResearchDto } from './dto/create-entrusted-research.dto';
 import { NotificationService } from '../notification/notification.service';
+import { assertAccountVerified } from '../users/account-verification';
+
+// Catégories verrouillées ("Bientôt disponible") — même liste que patrimoine-next/src/data/lockedCategories.ts.
+const LOCKED_RESEARCH_CATEGORIES = ['HOTELIER', 'HEBERGEMENT'];
 
 @Injectable()
 export class EntrustedResearchService {
@@ -11,6 +15,11 @@ export class EntrustedResearchService {
   ) {}
 
   async create(createDto: CreateEntrustedResearchDto) {
+    // Un compte connecté non validé (ou en attente de revalidation de son profil) ne peut pas publier.
+    if (createDto.userId) await assertAccountVerified(this.prisma, Number(createDto.userId));
+    if (createDto.realEstateType && LOCKED_RESEARCH_CATEGORIES.includes(createDto.realEstateType)) {
+      throw new BadRequestException('Cette catégorie est momentanément indisponible.');
+    }
     const research = await this.prisma.entrustedResearch.create({
       data: {
         ...createDto,

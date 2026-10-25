@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { OfferPackKind, ContactChannel } from '@prisma/client';
+import { assertNoPendingOrder } from '../points/pending-order';
 
 @Injectable()
 export class BoutiqueSubService {
@@ -13,14 +14,13 @@ export class BoutiqueSubService {
     const def = await this.prisma.offerPack.findUnique({ where: { kind_key: { kind: OfferPackKind.BOUTIQUE, key: pack } } });
     if (!def) throw new BadRequestException('Pack boutique invalide');
 
-    // Bloque si demande PENDING en cours ou abonnement actif non expiré
+    // Bloque si une commande (points OU boutique) est déjà en attente, ou abonnement actif non expiré
+    await assertNoPendingOrder(this.prisma, userId);
     const existing = await this.prisma.boutiqueSubscription.findFirst({
-      where: { userId, status: { in: ['PENDING', 'VALIDATED'] } },
+      where: { userId, status: 'VALIDATED' },
       orderBy: { createdAt: 'desc' },
     });
     if (existing) {
-      if (existing.status === 'PENDING')
-        throw new BadRequestException('Vous avez déjà une demande en attente de validation');
       if (existing.expiresAt && existing.expiresAt > new Date())
         throw new BadRequestException('Vous avez déjà un abonnement boutique actif');
     }

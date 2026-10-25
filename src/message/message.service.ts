@@ -25,9 +25,11 @@ export class MessageService {
     try {
       const sender = await this.prisma.user.findUnique({
         where: { id: senderId },
-        select: { firstName: true, lastName: true, companyName: true },
+        select: { firstName: true, lastName: true, companyName: true, userType: true },
       });
-      const senderName = sender?.companyName || [sender?.firstName, sender?.lastName].filter(Boolean).join(' ') || 'Un utilisateur';
+      const senderName = sender?.userType === 'ADMIN'
+        ? 'Patrimoine-Immobilier'
+        : sender?.companyName || [sender?.firstName, sender?.lastName].filter(Boolean).join(' ') || 'Un utilisateur';
       await this.notificationService.create(
         receiverId,
         'MESSAGE',
@@ -42,6 +44,14 @@ export class MessageService {
     return message;
   }
 
+  async markConversationRead(userId: number, partnerId: number) {
+    const res = await this.prisma.message.updateMany({
+      where: { senderId: partnerId, receiverId: userId, isRead: false },
+      data: { isRead: true },
+    });
+    return { updated: res.count };
+  }
+
   async getMyMessages(userId: number) {
     // Basic inbox logic: get all messages where I am receiver or sender
     return this.prisma.message.findMany({
@@ -52,8 +62,10 @@ export class MessageService {
         ],
       },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, companyName: true, imageUrl: true } },
-        receiver: { select: { id: true, firstName: true, lastName: true, companyName: true, imageUrl: true } },
+        // userType : un message de l'administration (ex. au sujet d'une commande, envoyé depuis
+        // /admin/points) s'affiche côté client sous le nom "Patrimoine-Immobilier", pas "Admin System".
+        sender: { select: { id: true, firstName: true, lastName: true, companyName: true, imageUrl: true, userType: true } },
+        receiver: { select: { id: true, firstName: true, lastName: true, companyName: true, imageUrl: true, userType: true } },
         announce: { select: { id: true, reference: true, property: { select: { propertyType: true, area: true } } } },
       },
       orderBy: { createdAt: 'desc' },

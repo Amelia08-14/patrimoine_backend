@@ -20,6 +20,25 @@ export class AdminController {
     return this.titleTranslation.backfillMissing(n);
   }
 
+  // Messagerie admin — l'envoi passe par POST /messages (jeton admin ordinaire).
+  @Get('messages')
+  async getAdminInbox(@Req() req: any) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getAdminInbox();
+  }
+
+  @Get('messages/unread-count')
+  async getAdminUnreadCount(@Req() req: any) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.getAdminUnreadCount();
+  }
+
+  @Patch('messages/read/:userId')
+  async markAdminConversationRead(@Req() req: any, @Param('userId') userId: string) {
+    await this.adminService.checkAdmin(req.user.userId);
+    return this.adminService.markAdminConversationRead(Number(userId));
+  }
+
   @Get('dashboard-stats')
   async getDashboardStats(@Req() req: any, @Query('from') from?: string, @Query('to') to?: string) {
     await this.adminService.checkAdmin(req.user.userId);

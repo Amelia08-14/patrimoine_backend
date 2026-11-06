@@ -7,6 +7,11 @@ import { assertAccountVerified } from '../users/account-verification';
 // Catégories verrouillées ("Bientôt disponible") — même liste que patrimoine-next/src/data/lockedCategories.ts.
 const LOCKED_RESEARCH_CATEGORIES = ['HOTELIER', 'HEBERGEMENT'];
 
+const RESEARCH_PUBLIC_USER_SELECT = {
+  id: true, firstName: true, lastName: true, companyName: true, companyNameAr: true, companyNameEn: true,
+  imageUrl: true, agencyLogoUrl: true, userType: true,
+} as const;
+
 @Injectable()
 export class EntrustedResearchService {
   constructor(
@@ -77,8 +82,10 @@ export class EntrustedResearchService {
     const researches = await this.prisma.entrustedResearch.findMany({
       where: userId ? { userId } : undefined,
       include: {
+        // Mêmes champs publics que l'auteur d'une annonce (cartes /demandes identiques à /announces :
+        // photo du particulier ou logo du professionnel) — jamais email/téléphone ici.
         user: {
-          select: { id: true, firstName: true, lastName: true, companyName: true },
+          select: RESEARCH_PUBLIC_USER_SELECT,
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -91,7 +98,7 @@ export class EntrustedResearchService {
   async findOnePublic(id: number) {
     const research = await this.prisma.entrustedResearch.findUnique({
       where: { id },
-      include: { user: { select: { id: true, firstName: true, lastName: true, companyName: true } } },
+      include: { user: { select: RESEARCH_PUBLIC_USER_SELECT } },
     });
     if (!research) throw new NotFoundException('Demande introuvable');
     const [enriched] = await this.enrich([research]);
